@@ -98,7 +98,7 @@ async function processVideoFrame() {
     }
 }
 
-// Function to draw emotion boxes
+// Function to draw emotion boxes with improved filtering
 function drawEmotionBoxes(results) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
@@ -124,7 +124,23 @@ function drawEmotionBoxes(results) {
     console.log(`Video displayed: ${videoRect.width}x${videoRect.height}`);
     console.log(`Scale factors: ${scaleX}, ${scaleY}`);
 
-    results.forEach(result => {
+    // Filter results by confidence threshold and reasonable size
+    const filteredResults = results.filter(result => {
+        const { confidence, bounding_box } = result;
+        const { width, height } = bounding_box;
+        
+        // Filter by confidence (only show results with >70% confidence)
+        if (confidence < 0.7) return false;
+        
+        // Filter by reasonable face size (avoid tiny false positives)
+        const minSize = 30; // minimum face size in pixels
+        const maxSize = Math.min(video.videoWidth, video.videoHeight) * 0.8; // max 80% of video size
+        
+        return width >= minSize && height >= minSize && 
+               width <= maxSize && height <= maxSize;
+    });
+
+    filteredResults.forEach((result, index) => {
         const { bounding_box, emotion, confidence } = result;
         const { x, y, width, height } = bounding_box;
         
@@ -134,16 +150,32 @@ function drawEmotionBoxes(results) {
         const scaledWidth = width * scaleX;
         const scaledHeight = height * scaleY;
         
+        // Use different colors for different confidence levels
+        let boxColor = "red";
+        if (confidence > 0.9) boxColor = "green";
+        else if (confidence > 0.8) boxColor = "orange";
+        
         // Draw bounding box
-        ctx.strokeStyle = "red";
+        ctx.strokeStyle = boxColor;
         ctx.lineWidth = 2;
         ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
         
-        // Draw emotion label
+        // Draw emotion label with background for better readability
         const label = `${emotion} (${Math.round(confidence * 100)}%)`;
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        ctx.fillText(label, scaledX, scaledY - 5);
+        ctx.font = "14px Arial";
+        
+        // Measure text for background
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = 20;
+        
+        // Draw background for text
+        ctx.fillStyle = boxColor;
+        ctx.fillRect(scaledX, scaledY - textHeight - 5, textWidth + 10, textHeight);
+        
+        // Draw text
+        ctx.fillStyle = "white";
+        ctx.fillText(label, scaledX + 5, scaledY - 8);
     });
 }
 
@@ -172,4 +204,4 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 300);
+setInterval(testProcessFrame, 100);
