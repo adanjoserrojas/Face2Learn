@@ -1,5 +1,9 @@
 console.log("face2learn content script loaded");
 
+// API Configuration
+const API_BASE_URL = 'http://localhost:5001';
+
+// Canvas setup
 const canvas = document.createElement("canvas");
 canvas.id = "face2learn-canvas";
 canvas.style.position = "fixed";
@@ -18,19 +22,55 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
 
-function drawBox(x, y, width, height, label) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, width, height);
+// Function to get emotion data from API
+async function getEmotionData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/test_emotions`, {
+            method: 'GET'
+        });
 
-    if (label){
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        ctx.fillText(label, x, y - 5);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.results || [];
+    } catch (error) {
+        console.error('Error calling emotion detection API:', error);
+        return [];
     }
 }
 
-setInterval(() => {
-    drawBox(200, 150, 120, 120, "Happy (82%)");
-}, 1000);
+// Function to draw emotion boxes
+function drawEmotionBoxes(results) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (!results || results.length === 0) {
+        return;
+    }
+
+    results.forEach(result => {
+        const { bounding_box, emotion, confidence } = result;
+        const { x, y, width, height } = bounding_box;
+        
+        // Draw bounding box
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+        
+        // Draw emotion label
+        const label = `${emotion} (${Math.round(confidence * 100)}%)`;
+        ctx.fillStyle = "red";
+        ctx.font = "16px Arial";
+        ctx.fillText(label, x, y - 5);
+    });
+}
+
+// Main processing function
+async function processFrame() {
+    const results = await getEmotionData();
+    drawEmotionBoxes(results);
+}
+
+// Start processing every 500ms for smooth animation
+setInterval(processFrame, 500);
