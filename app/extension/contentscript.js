@@ -1,7 +1,7 @@
 function captureFrame() {
     //Log the attempt to capture a frame
     console.log("Attempting to capture frame from video element.");
-  const video = document.querySelector("video");
+    const video = document.querySelector("video");
   if (!video) return null;
 
   const canvas = document.createElement("canvas");
@@ -29,9 +29,9 @@ canvas.id = "face2learn-canvas";
 canvas.style.position = "fixed";
 canvas.style.top = "0";
 canvas.style.left = "0";
-canvas.style.pointerEvents = "auto"; // Enable pointer events for clickable rectangles
+canvas.style.pointerEvents = "none"; // Don't block page clicks by default
 canvas.style.zIndex = "1000";
-canvas.style.cursor = "pointer";
+canvas.style.cursor = "default";
 document.body.appendChild(canvas);
 
 const ctx = canvas.getContext("2d");
@@ -235,30 +235,41 @@ Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
     // logEmotionClick(emotionData);
 }
 
+
 // Add click event listener to canvas
-canvas.addEventListener('click', function(event) {
+addEventListener('click', function(event) {
+    // Compute click relative to the canvas
     const rect = canvas.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
-    
+
     console.log(`Canvas clicked at: (${clickX}, ${clickY})`);
-    
+
     // Check if click is inside any emotion box
     for (let i = 0; i < currentEmotionBoxes.length; i++) {
         const box = currentEmotionBoxes[i];
         if (isPointInRect(clickX, clickY, box)) {
+            // Consume the event only when click lands inside a face box so underlying page
+            // doesn't receive the click. When click is outside boxes we do nothing and allow
+            // the event to propagate to the page.
             handleEmotionBoxClick(box);
+            try {
+                event.stopPropagation();
+                event.preventDefault();
+            } catch (e) {
+                // ignore in case event isn't cancelable
+            }
             break; // Only handle the first matching box
         }
     }
 });
 
 // Add hover effect to show pointer cursor only over emotion boxes
-canvas.addEventListener('mousemove', function(event) {
+addEventListener('mousemove', function(event) {
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    
+
     // Check if mouse is over any emotion box
     let overBox = false;
     for (let i = 0; i < currentEmotionBoxes.length; i++) {
@@ -268,10 +279,18 @@ canvas.addEventListener('mousemove', function(event) {
             break;
         }
     }
-    
-    // Change cursor based on hover state
-    canvas.style.cursor = overBox ? "pointer" : "default";
+
+    // If hovering a box, enable pointer events on the canvas so clicks are caught by it
+    // Otherwise disable pointer events so clicks pass through to the underlying page.
+    if (overBox) {
+        canvas.style.pointerEvents = "auto";
+        canvas.style.cursor = "pointer";
+    } else {
+        canvas.style.pointerEvents = "none";
+        canvas.style.cursor = "default";
+    }
 });
+
 
 // Add keyboard shortcut to trigger test capture
 document.addEventListener('keydown', function(event) {
