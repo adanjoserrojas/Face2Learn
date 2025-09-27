@@ -1,5 +1,8 @@
-bg-red-500 bg-blue-500 bg-green-500 bg-yellow-500 bg-purple-500 bg-pink-500 bg-indigo-500
-text-red-500 text-blue-500 text-green-500 text-yellow-500 text-purple-500 text-pink-500 text-indigo-500
+bg-red-500 bg-blue-500 bg-green-500 bg-yellow-500 bg-purple-500 bg-pink-500 bg-indigo-500 bg-Beige-200 bg-Beige-300 bg-Beige-400 bg-Beige-500
+bg-purple-primary bg-purple-light bg-yellow-accent bg-orange bg-red-orange
+bg-bg-primary bg-bg-secondary bg-bg-tertiary bg-bg-light
+text-red-500 text-blue-500 text-green-500 text-yellow-500 text-purple-500 text-pink-500 text-indigo-500 text-gray-100
+text-purple-primary text-purple-light text-yellow-accent text-orange text-red-orange text-white text-gray-600 text-gray-900
 text-xs text-sm text-base text-lg text-xl text-2xl text-3xl text-4xl text-5xl text-6xl
 p-1 p-2 p-3 p-4 p-5 p-6 p-8 p-10 p-12 p-16 p-20 p-24 p-32 p-40 p-48 p-56 p-64
 m-1 m-2 m-3 m-4 m-5 m-6 m-8 m-10 m-12 m-16 m-20 m-24 m-32 m-40 m-48 m-56 m-64
@@ -17,4 +20,5 @@ opacity-0 opacity-25 opacity-50 opacity-75 opacity-100
 transform translate-x-0 translate-x-1 translate-x-2 translate-x-4 translate-x-8 translate-x-16
 scale-50 scale-75 scale-90 scale-95 scale-100 scale-105 scale-110 scale-125 scale-150
 rotate-0 rotate-1 rotate-2 rotate-3 rotate-6 rotate-12 rotate-45 rotate-90 rotate-180
-font-thin font-extralight font-light font-normal font-medium font-semibold font-bold font-extrabold font-black
+animate-bounce-smooth
+font-thin font-extralight font-light font-normal font-medium font-semibold font-bold font-extrabold font-black font-nunito font-fredoka font-quicksand

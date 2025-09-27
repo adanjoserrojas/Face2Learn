@@ -1,14 +1,39 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const captureBtn = document.getElementById('capture');
-  const analyzeBtn = document.getElementById('analyze');
-  const openBtn = document.getElementById('open');
-  const downloadBtn = document.getElementById('download');
   const thumb = document.getElementById('thumb');
   const placeholder = document.getElementById('thumb-placeholder');
+  
+  // Toggle functionality
+  const screenshotToggle = document.getElementById('screenshot-toggle');
+  const screenshotButtonContainer = document.getElementById('screenshot-button-container');
+  const screenshotBtn = document.getElementById('screenshot-btn');
 
   let currentDataUrl = null;
-  let currentPrompts = null;
-  let currentEmotionResults = null;
+
+  // Set initial state - button should be visible when toggle is OFF (unchecked)
+  if (!screenshotToggle.checked) {
+    screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
+    screenshotButtonContainer.classList.add('opacity-100', 'scale-100');
+  }
+
+  // Handle toggle switch (inverted logic)
+  screenshotToggle.addEventListener('change', function() {
+    if (!this.checked) {
+      // Toggle is OFF - show screenshot button with smooth transition
+      screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
+      screenshotButtonContainer.classList.add('opacity-100', 'scale-100');
+    } else {
+      // Toggle is ON - hide screenshot button with smooth transition
+      screenshotButtonContainer.classList.remove('opacity-100', 'scale-100');
+      screenshotButtonContainer.classList.add('opacity-0', 'scale-95');
+    }
+  });
+
+  // Handle screenshot button click
+  screenshotBtn.addEventListener('click', () => {
+    // You can implement screenshot functionality here
+    console.log('Screenshot button clicked!');
+    // Add your screenshot logic here
+  });
 
   function setThumbnail(dataUrl) {
     currentDataUrl = dataUrl;
