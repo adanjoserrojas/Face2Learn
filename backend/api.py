@@ -86,7 +86,7 @@ def process_image(image_data):
         # Detect faces using Haar cascade classifier
         # scaleFactor: How much the image size is reduced at each scale (1.3 = 30% reduction)
         # minNeighbors: How many neighbors each candidate rectangle should have to retain it
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
         
         results = []
         for i, (x, y, w, h) in enumerate(faces):

@@ -106,20 +106,44 @@ function drawEmotionBoxes(results) {
         return;
     }
 
+    // Get video element to calculate scaling factors
+    const video = document.querySelector("video");
+    if (!video) {
+        console.log('No video element found for coordinate scaling');
+        return;
+    }
+
+    // Get video's position and size on the page
+    const videoRect = video.getBoundingClientRect();
+    
+    // Calculate scaling factors between native video resolution and displayed size
+    const scaleX = videoRect.width / video.videoWidth;
+    const scaleY = videoRect.height / video.videoHeight;
+    
+    console.log(`Video native: ${video.videoWidth}x${video.videoHeight}`);
+    console.log(`Video displayed: ${videoRect.width}x${videoRect.height}`);
+    console.log(`Scale factors: ${scaleX}, ${scaleY}`);
+
     results.forEach(result => {
         const { bounding_box, emotion, confidence } = result;
         const { x, y, width, height } = bounding_box;
         
+        // Scale coordinates from native video resolution to displayed size
+        const scaledX = (x * scaleX) + videoRect.left;
+        const scaledY = (y * scaleY) + videoRect.top;
+        const scaledWidth = width * scaleX;
+        const scaledHeight = height * scaleY;
+        
         // Draw bounding box
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
+        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
         
         // Draw emotion label
         const label = `${emotion} (${Math.round(confidence * 100)}%)`;
         ctx.fillStyle = "red";
         ctx.font = "16px Arial";
-        ctx.fillText(label, x, y - 5);
+        ctx.fillText(label, scaledX, scaledY - 5);
     });
 }
 
@@ -148,4 +172,4 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 100);
+setInterval(testProcessFrame, 300);
