@@ -61,6 +61,43 @@ async function getEmotionData() {
     }
 }
 
+// Function to process captured video frame for emotion detection
+async function processVideoFrame() {
+    try {
+        // Capture frame from video
+        const imageData = captureFrame();
+        
+        if (!imageData) {
+            console.log('No video found or unable to capture frame');
+            return [];
+        }
+
+        console.log('Captured frame, sending to emotion detection API');
+
+        // Send captured frame to emotion detection API
+        const response = await fetch(`${API_BASE_URL}/detect_emotions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Emotion detection results:', data);
+        return data.results || [];
+    } catch (error) {
+        console.error('Error processing video frame for emotion detection:', error);
+        return [];
+    }
+}
+
 // Function to draw emotion boxes
 function drawEmotionBoxes(results) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -92,5 +129,23 @@ async function processFrame() {
     drawEmotionBoxes(results);
 }
 
-// Start processing every 500ms for smooth animation
-setInterval(processFrame, 500);
+// Test processing function that uses real video capture
+async function testProcessFrame() {
+    const results = await processVideoFrame();
+    drawEmotionBoxes(results);
+}
+
+// Add keyboard shortcut to trigger test capture
+document.addEventListener('keydown', function(event) {
+    // Press 'T' key to trigger test emotion detection on video
+    if (event.key === 't' || event.key === 'T') {
+        console.log('Test capture triggered by user');
+        testProcessFrame();
+    }
+});
+
+// Start processing every 500ms for smooth animation (using mock data)
+// setInterval(processFrame, 500);
+
+// Uncomment the line below and comment the line above to use real video capture instead
+setInterval(testProcessFrame, 100);
