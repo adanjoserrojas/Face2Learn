@@ -12,10 +12,16 @@ from PIL import Image
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
 import os
+import google.generativeai as genai
+from config import GEMINI_API_KEY, CONFIDENCE_THRESHOLD, MAX_FACES
 
 # Initialize Flask app with CORS enabled for Chrome extension
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Chrome extension communication
+
+# Configure Gemini AI
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
 def create_model():
     """
@@ -62,6 +68,181 @@ model = create_model()
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')  # Haar cascade for face detection
 emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
+def get_fallback_educational_content(emotion, confidence):
+    """
+    Generate fallback educational content when Gemini API is not available.
+    """
+    fallback_content = {
+        "Happy": f"I can see you're feeling positive about learning (confidence: {confidence:.1%}). Your expression suggests you're engaged and enjoying the learning process. This is an excellent state for absorbing new information. Try tackling more challenging concepts while you're in this positive mood, or help others learn by explaining what you know! Consider your current learning environment - is it comfortable and well-lit? Make sure you're taking advantage of this positive energy!",
+        
+        "Sad": f"I notice you might be feeling a bit down (confidence: {confidence:.1%}). Learning can be challenging sometimes, and it's okay to feel this way. Your expression suggests you might be struggling with the material or feeling overwhelmed. Consider taking a short break, reviewing easier material to build confidence, or reaching out to a study partner for support. Check your learning environment - sometimes a change of scenery or better lighting can help improve your mood.",
+        
+        "Angry": f"It looks like you might be feeling frustrated (confidence: {confidence:.1%}). This is completely normal when learning something difficult. Your expression suggests you're hitting a learning obstacle. Try breaking the material into smaller chunks, taking deep breaths, or switching to a different topic for a while. Remember, every expert was once a beginner! Consider your study setup - are you comfortable? Sometimes adjusting your posture or taking a short walk can help reset your mindset.",
+        
+        "Fearful": f"I can see some uncertainty in your expression (confidence: {confidence:.1%}). It's natural to feel apprehensive about new concepts. Your expression suggests you might be worried about not understanding something or making mistakes. Start with the basics, ask questions, and remember that making mistakes is part of the learning process. You've got this! Make sure you're in a comfortable, distraction-free environment that helps you feel safe to learn.",
+        
+        "Surprised": f"Wow! You look surprised (confidence: {confidence:.1%}). This suggests you've just discovered something unexpected or new! This is one of the best moments in learning. Your expression shows genuine curiosity and engagement. Take time to explore this discovery further and see what other connections you can make. This is a perfect time to take notes or discuss what you've learned with someone else!",
+        
+        "Disgusted": f"It seems like this content might not be resonating with you (confidence: {confidence:.1%}). That's okay! Your expression suggests you're not connecting with the current material or approach. Try a different approach, find alternative resources, or take a break and come back with fresh eyes. Learning should feel engaging, not forced. Consider whether your learning environment is optimal - sometimes a change of setting can make a big difference.",
+        
+        "Neutral": f"You appear focused and attentive (confidence: {confidence:.1%}). This is an ideal learning state! Your expression shows you're ready to absorb new information. Try to maintain this concentration and consider taking notes to reinforce what you're learning. Your current learning environment seems to be working well for you - keep up the good work!"
+    }
+    
+    return fallback_content.get(emotion, f"You're showing a {emotion.lower()} expression (confidence: {confidence:.1%}). This is a normal part of the learning process. Take a moment to reflect on how you're feeling and adjust your learning approach accordingly. Consider your current environment and whether it's supporting your learning goals.")
+
+def generate_educational_prompt_from_image(image_data, emotion, confidence, context=""):
+    """
+    Generate educational prompts based on the actual captured image using Gemini AI.
+    
+    Args:
+        image_data (str): Base64 encoded image data
+        emotion (str): Detected emotion name
+        confidence (float): Confidence score of the emotion detection
+        context (str): Additional context about the learning situation
+    
+    Returns:
+        dict: Educational prompt with title, content, and suggestions
+    """
+    try:
+        # Convert base64 to PIL Image for Gemini
+        if ',' in image_data:
+            image_bytes = base64.b64decode(image_data.split(',')[1])
+        else:
+            image_bytes = base64.b64decode(image_data)
+        
+        # Try to open the image with PIL
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            # Convert to RGB if necessary (handles RGBA, P, etc.)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as pil_error:
+            print(f"PIL error in Gemini function: {pil_error}")
+            # Fallback: try to decode directly with OpenCV and convert back to PIL
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            cv_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if cv_image is None:
+                raise ValueError("Could not decode image for Gemini analysis")
+            # Convert OpenCV BGR to RGB for PIL
+            cv_image_rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(cv_image_rgb)
+        
+        # Create a comprehensive prompt for Gemini with the image
+        prompt = f"""
+        You are an educational AI assistant helping learners understand and manage their emotions during learning.
+        
+        Look at this image carefully. I can see their facial expression shows "{emotion}" emotion with {confidence:.1%} confidence.
+        Additional context: {context if context else "General learning environment"}
+        
+        Please analyze this image and provide:
+        1. A detailed description of what you see in the scene - describe the setting, lighting, what the person is doing, their posture, and any other relevant details
+        2. An explanation of what this emotion and expression might indicate about their learning state, considering the scene context
+        3. 2-3 specific learning strategies or activities they could try based on this emotional state and scene
+        4. Encouragement or motivation appropriate for this emotional state and learning situation
+        5. A short, actionable tip they can implement right now based on what you observe
+        
+        Be specific about what you observe in the scene and how it relates to their learning experience. Consider the environment, their setup, and how it might be affecting their learning.
+        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 250 words).
+        """
+        
+        # Use Gemini Pro Vision model for image analysis
+        try:
+            vision_model = genai.GenerativeModel('gemini-pro-vision')
+            response = vision_model.generate_content([prompt, image])
+            
+            # Parse the response and structure it
+            content = response.text.strip()
+        except Exception as gemini_error:
+            print(f"Gemini API error: {gemini_error}")
+            # Use fallback content based on emotion
+            content = get_fallback_educational_content(emotion, confidence)
+        
+        # Create a structured response
+        educational_prompt = {
+            "emotion": emotion,
+            "confidence": confidence,
+            "title": f"Learning Guidance - {emotion} Expression",
+            "content": content,
+            "timestamp": __import__('time').time(),
+            "analysis_type": "image_based"
+        }
+        
+        return educational_prompt
+        
+    except Exception as e:
+        print(f"Error generating educational prompt from image: {str(e)}")
+        # Use fallback content when Gemini fails
+        content = get_fallback_educational_content(emotion, confidence)
+        
+        return {
+            "emotion": emotion,
+            "confidence": confidence,
+            "title": f"Learning Guidance - {emotion} Expression",
+            "content": content,
+            "timestamp": __import__('time').time(),
+            "analysis_type": "fallback"
+        }
+
+def generate_educational_prompt_text_only(emotion, confidence, context=""):
+    """
+    Fallback function to generate educational prompts based on emotion text only.
+    
+    Args:
+        emotion (str): Detected emotion name
+        confidence (float): Confidence score of the emotion detection
+        context (str): Additional context about the learning situation
+    
+    Returns:
+        dict: Educational prompt with title, content, and suggestions
+    """
+    try:
+        # Create a comprehensive prompt for Gemini
+        prompt = f"""
+        You are an educational AI assistant helping learners understand and manage their emotions during learning.
+        
+        Context: A learner is watching educational content and their facial expression shows "{emotion}" emotion with {confidence:.1%} confidence.
+        Additional context: {context if context else "General learning environment"}
+        
+        Please provide:
+        1. A brief explanation of what this emotion might indicate about their learning state
+        2. 2-3 specific learning strategies or activities they could try based on this emotion
+        3. Encouragement or motivation appropriate for this emotional state
+        4. A short, actionable tip they can implement right now
+        
+        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 200 words).
+        """
+        
+        response = model.generate_content(prompt)
+        
+        # Parse the response and structure it
+        content = response.text.strip()
+        
+        # Create a structured response
+        educational_prompt = {
+            "emotion": emotion,
+            "confidence": confidence,
+            "title": f"Learning Guidance - {emotion} Expression",
+            "content": content,
+            "timestamp": __import__('time').time(),
+            "analysis_type": "text_based"
+        }
+        
+        return educational_prompt
+        
+    except Exception as e:
+        print(f"Error generating educational prompt: {str(e)}")
+        # Use fallback content when Gemini fails
+        content = get_fallback_educational_content(emotion, confidence)
+        return {
+            "emotion": emotion,
+            "confidence": confidence,
+            "title": f"Learning Guidance - {emotion} Expression",
+            "content": content,
+            "timestamp": __import__('time').time(),
+            "error": "AI prompt generation failed, showing fallback message",
+            "analysis_type": "fallback"
+        }
+
 def process_image(image_data):
     """
     Process a base64 encoded image and return emotion predictions with bounding boxes.
@@ -74,11 +255,37 @@ def process_image(image_data):
               Each result includes face_id, emotion, confidence, and bounding box coordinates
     """
     try:
+        # Debug: Log image data info
+        print(f"Image data length: {len(image_data)}")
+        print(f"Image data starts with: {image_data[:50]}...")
+        
         # Decode base64 image data
         # Split on comma to remove data URL prefix and get just the base64 data
-        image_bytes = base64.b64decode(image_data.split(',')[1])
-        image = Image.open(io.BytesIO(image_bytes))
-        frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        if ',' in image_data:
+            base64_part = image_data.split(',')[1]
+            print(f"Base64 part length: {len(base64_part)}")
+            image_bytes = base64.b64decode(base64_part)
+        else:
+            image_bytes = base64.b64decode(image_data)
+        
+        print(f"Decoded image bytes length: {len(image_bytes)}")
+        
+        # Try to open the image with PIL
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            # Convert to RGB if necessary (handles RGBA, P, etc.)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as pil_error:
+            print(f"PIL error: {pil_error}")
+            # Fallback: try to decode directly with OpenCV
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                raise ValueError("Could not decode image with either PIL or OpenCV")
+        else:
+            # Convert PIL image to OpenCV format
+            frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
         # Convert to grayscale for face detection (Haar cascade works better on grayscale)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -138,6 +345,9 @@ def process_image(image_data):
     
     except Exception as e:
         print(f"Error processing frame: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return []
     
 @app.route('/detect_emotions', methods=['POST'])
@@ -180,11 +390,15 @@ def detect_emotions():
         # Process the image and detect emotions
         results = process_image(data['image'])
         
+        # Note: Educational prompts are now only generated when user clicks the button
+        # This saves API calls and improves performance
+        
         # Prepare response
         response = {
             'success': True,
             'faces_detected': len(results),
-            'results': results
+            'results': results,
+            'educational_prompts': []  # Empty array - prompts generated on-demand
         }
         
         return jsonify(response)
@@ -202,6 +416,78 @@ def health_check():
         JSON response indicating API status
     """
     return jsonify({'status': 'healthy', 'message': 'Emotion detection API is running'})
+
+@app.route('/generate_prompt', methods=['POST'])
+def generate_prompt():
+    """
+    Generate educational prompt based on emotion data.
+    
+    Expected JSON payload:
+        {
+            "emotion": "Happy",
+            "confidence": 0.85,
+            "context": "Learning math concepts"
+        }
+    
+    Returns:
+        JSON response with educational prompt
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'emotion' not in data:
+            return jsonify({'error': 'Emotion data is required'}), 400
+        
+        emotion = data.get('emotion')
+        confidence = data.get('confidence', 0.5)
+        context = data.get('context', '')
+        
+        prompt = generate_educational_prompt_text_only(emotion, confidence, context)
+        
+        return jsonify({
+            'success': True,
+            'prompt': prompt
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/generate_prompt_from_image', methods=['POST'])
+def generate_prompt_from_image():
+    """
+    Generate educational prompt based on captured image using Gemini Vision.
+    
+    Expected JSON payload:
+        {
+            "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...",
+            "emotion": "Happy",
+            "confidence": 0.85,
+            "context": "Learning math concepts"
+        }
+    
+    Returns:
+        JSON response with educational prompt based on image analysis
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'image' not in data:
+            return jsonify({'error': 'Image data is required'}), 400
+        
+        image = data.get('image')
+        emotion = data.get('emotion', 'Neutral')
+        confidence = data.get('confidence', 0.5)
+        context = data.get('context', '')
+        
+        prompt = generate_educational_prompt_from_image(image, emotion, confidence, context)
+        
+        return jsonify({
+            'success': True,
+            'prompt': prompt
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/test_emotions', methods=['GET'])
@@ -387,9 +673,11 @@ if __name__ == '__main__':
     print("Starting Emotion Detection API...")
     print("Model loaded successfully!")
     print("API endpoints available:")
-    print("  - POST /detect_emotions - Main emotion detection endpoint")
-    print("  - GET  /test_emotions   - Test endpoint with simulated data")
-    print("  - GET  /health          - Health check endpoint")
+    print("  - POST /detect_emotions           - Main emotion detection endpoint with image-based prompts")
+    print("  - POST /generate_prompt_from_image - Generate educational prompts from images using Gemini Vision")
+    print("  - POST /generate_prompt           - Generate educational prompts from emotion text only")
+    print("  - GET  /test_emotions             - Test endpoint with simulated data")
+    print("  - GET  /health                    - Health check endpoint")
     print("Server starting on http://0.0.0.0:5001")
     
     # Start Flask development server

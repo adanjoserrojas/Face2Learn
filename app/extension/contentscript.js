@@ -1,8 +1,11 @@
 function captureFrame() {
-    //Log the attempt to capture a frame
+    //Log the attempt to capture frame from video element.
     console.log("Attempting to capture frame from video element.");
   const video = document.querySelector("video");
-  if (!video) return null;
+  if (!video) {
+    console.log("No video element found");
+    return null;
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
@@ -10,7 +13,11 @@ function captureFrame() {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  return canvas.toDataURL("image/png"); // Base64
+  const dataURL = canvas.toDataURL("image/jpeg", 0.8); // Use JPEG with compression
+  console.log("Captured frame data URL length:", dataURL.length);
+  console.log("Data URL starts with:", dataURL.substring(0, 50));
+  
+  return dataURL;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -29,7 +36,7 @@ canvas.id = "face2learn-canvas";
 canvas.style.position = "fixed";
 canvas.style.top = "0";
 canvas.style.left = "0";
-canvas.style.pointerEvents = "none";
+canvas.style.pointerEvents = "none"; // Disable click events
 canvas.style.zIndex = "1000";
 document.body.appendChild(canvas);
 
@@ -41,6 +48,28 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
+
+// Note: Gemini analysis button moved to extension popup UI
+
+// Note: Gemini analysis functionality moved to extension popup UI
+
+// Test canvas functionality on load
+setTimeout(() => {
+    console.log('Testing canvas functionality...');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(50, 50, 150, 100);
+    ctx.fillStyle = "blue";
+    ctx.font = "14px Arial";
+    ctx.fillText("Canvas Test - Face2Learn Active", 60, 70);
+    
+    // Clear test rectangle after 3 seconds
+    setTimeout(() => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        console.log('Canvas test completed');
+    }, 3000);
+}, 1000);
 
 // Function to get emotion data from API
 async function getEmotionData() {
@@ -91,18 +120,23 @@ async function processVideoFrame() {
 
         const data = await response.json();
         console.log('Emotion detection results:', data);
-        return data.results || [];
+        return {
+            results: data.results || [],
+            educational_prompts: data.educational_prompts || []
+        };
     } catch (error) {
         console.error('Error processing video frame for emotion detection:', error);
-        return [];
+        return { results: [], educational_prompts: [] };
     }
 }
 
 // Function to draw emotion boxes with improved filtering
 function drawEmotionBoxes(results) {
+    console.log('drawEmotionBoxes called with results:', results);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     if (!results || results.length === 0) {
+        console.log('No results to draw, clearing canvas');
         return;
     }
 
@@ -179,17 +213,123 @@ function drawEmotionBoxes(results) {
     });
 }
 
+// Function to display educational prompts
+function displayEducationalPrompts(prompts) {
+    // Remove existing prompt containers
+    const existingPrompts = document.querySelectorAll('.face2learn-prompt');
+    existingPrompts.forEach(prompt => prompt.remove());
+    
+    if (!prompts || prompts.length === 0) return;
+    
+    // Create prompt container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'face2learn-prompt';
+    promptContainer.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 300px;
+        max-height: 400px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        z-index: 1001;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        line-height: 1.4;
+        overflow-y: auto;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.2);
+    `;
+    
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    closeBtn.onclick = () => promptContainer.remove();
+    
+    // Add content for each prompt
+    prompts.forEach((prompt, index) => {
+        const promptDiv = document.createElement('div');
+        promptDiv.style.cssText = `
+            margin-bottom: ${index < prompts.length - 1 ? '15px' : '0'};
+            padding-bottom: ${index < prompts.length - 1 ? '15px' : '0'};
+            border-bottom: ${index < prompts.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none'};
+        `;
+        
+        promptDiv.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 8px; color: #ffd700;">
+                ${prompt.title}
+            </div>
+            <div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8;">
+                Confidence: ${Math.round(prompt.confidence * 100)}%
+            </div>
+            <div style="white-space: pre-wrap;">
+                ${prompt.content}
+            </div>
+        `;
+        
+        promptContainer.appendChild(promptDiv);
+    });
+    
+    promptContainer.appendChild(closeBtn);
+    document.body.appendChild(promptContainer);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+        if (promptContainer.parentNode) {
+            promptContainer.remove();
+        }
+    }, 10000);
+}
+
 // Main processing function
 async function processFrame() {
-    const results = await getEmotionData();
-    drawEmotionBoxes(results);
+    const data = await getEmotionData();
+    console.log('ProcessFrame data:', data);
+    drawEmotionBoxes(data.results || data);
 }
 
 // Test processing function that uses real video capture
 async function testProcessFrame() {
-    const results = await processVideoFrame();
-    drawEmotionBoxes(results);
+    console.log('testProcessFrame called');
+    try {
+        const data = await processVideoFrame();
+        console.log('testProcessFrame data:', data);
+        
+        if (data && data.results && data.results.length > 0) {
+            console.log('Found', data.results.length, 'emotion results');
+            drawEmotionBoxes(data.results);
+            window.currentEmotionResults = data.results;
+        } else {
+            console.log('No emotion results found, clearing canvas');
+            drawEmotionBoxes([]);
+            window.currentEmotionResults = [];
+        }
+    } catch (error) {
+        console.error('Error in testProcessFrame:', error);
+        drawEmotionBoxes([]);
+        window.currentEmotionResults = [];
+    }
 }
+
 
 // Add keyboard shortcut to trigger test capture
 document.addEventListener('keydown', function(event) {
@@ -197,6 +337,25 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 't' || event.key === 'T') {
         console.log('Test capture triggered by user');
         testProcessFrame();
+    }
+    
+    // Press 'R' key to draw a test rectangle
+    if (event.key === 'r' || event.key === 'R') {
+        console.log('Drawing test rectangle');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(100, 100, 200, 150);
+        ctx.fillStyle = "red";
+        ctx.font = "16px Arial";
+        ctx.fillText("Test Rectangle - Canvas Working!", 110, 120);
+    }
+    
+    // Press 'C' key to clear loading indicator (emergency stop)
+    if (event.key === 'c' || event.key === 'C') {
+        console.log('Clearing loading indicator');
+        hideLoadingIndicator();
+        showNotification('Loading indicator cleared', 'info');
     }
 });
 

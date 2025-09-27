@@ -14,13 +14,24 @@
     </div>
 
     <div class="flex gap-2 mb-4">
-      
       <button id="capture" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 border-0 cursor-pointer">Capture</button>
+      <button id="analyze" class="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 border-0 cursor-pointer">🧠 Analyze</button>
+    </div>
+    
+    <div class="flex gap-2 mb-4">
       <button id="open" class="flex-1 px-3 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 border border-gray-300 cursor-pointer">Open</button>
       <button id="download" class="flex-1 px-3 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 border border-gray-300 cursor-pointer">Download</button>
     </div>
 
     <div class="text-xs text-gray-600 p-4">Make sure a video is playing on the active tab, then click Capture.</div>
+
+    <!-- Educational Prompts Section -->
+    <div id="prompts-section" class="hidden mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+      <h3 class="text-sm font-semibold text-gray-800 mb-2">Learning Insights</h3>
+      <div id="prompts-content" class="text-xs text-gray-600">
+        <!-- Prompts will be populated here -->
+      </div>
+    </div>
 
     <script src="popup.js"></script>
   </body>
