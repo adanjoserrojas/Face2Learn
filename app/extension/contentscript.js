@@ -1,5 +1,7 @@
+let VISUALON = true;
+
 function captureFrame() {
-    //Log the attempt to capture frame from video element.
+    //Log the attempt to capture a frame
     console.log("Attempting to capture frame from video element.");
   const video = document.querySelector("video");
   if (!video) {
@@ -45,6 +47,8 @@ const ctx = canvas.getContext("2d");
 
 // Store current emotion boxes for click detection
 let currentEmotionBoxes = [];
+// Track mouse position in client coordinates for hover detection
+let currentMouseClient = { x: null, y: null };
 
 function resizeCanvas() { 
     canvas.width = window.innerWidth;
@@ -207,27 +211,32 @@ function drawEmotionBoxes(results) {
         if (confidence > 0.9) boxColor = "green";
         else if (confidence > 0.8) boxColor = "orange";
         
-        // Draw bounding box
-        ctx.strokeStyle = boxColor;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
-        
-        // Draw emotion label with background for better readability
-        const label = `${emotion} (${Math.round(confidence * 100)}%)`;
-        ctx.font = "14px Arial";
-        
-        // Measure text for background
-        const textMetrics = ctx.measureText(label);
-        const textWidth = textMetrics.width;
-        const textHeight = 20;
-        
-        // Draw background for text
-        ctx.fillStyle = boxColor;
-        ctx.fillRect(scaledX, scaledY - textHeight - 5, textWidth + 10, textHeight);
-        
-        // Draw text
-        ctx.fillStyle = "white";
-        ctx.fillText(label, scaledX + 5, scaledY - 8);
+        // Draw bounding box only when hovered (use client coords for hover check)
+        const boxRect = { x: scaledX, y: scaledY, width: scaledWidth, height: scaledHeight };
+        const hovered = currentMouseClient.x !== null && isPointInRect(currentMouseClient.x, currentMouseClient.y, boxRect);
+        if (hovered || VISUALON) {
+            ctx.strokeStyle = boxColor;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+                    
+            // Draw emotion label with background for better readability
+            const label = `${emotion}`;
+            ctx.font = "14px Arial";
+            
+            // Measure text for background
+            const textMetrics = ctx.measureText(label);
+            const textWidth = textMetrics.width;
+            const textHeight = 20;
+            
+            // Draw background for text
+            ctx.fillStyle = boxColor;
+            ctx.fillRect(scaledX + (scaledWidth / 2) - (textWidth / 2) + (ctx.lineWidth / 2) - 1, scaledY - textHeight, textWidth + 2, textHeight + 2);
+            
+            // Draw text
+            ctx.fillStyle = "white";
+            ctx.fillText(label, scaledX + (scaledWidth / 2) - (textWidth / 2) + (ctx.lineWidth / 2), scaledY + 2);
+            }
     });
 }
 
@@ -347,6 +356,93 @@ async function testProcessFrame() {
         window.currentEmotionResults = [];
     }
 }
+// Function to check if a point is inside a rectangle
+function isPointInRect(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.width &&
+           y >= rect.y && y <= rect.y + rect.height;
+}
+
+// Function to handle emotion box clicks
+function handleEmotionBoxClick(emotionData) {
+    console.log('Emotion box clicked:', emotionData);
+    
+    // Create a detailed popup or alert with emotion information
+    const details = `
+Face ID: ${emotionData.face_id}
+Emotion: ${emotionData.emotion}
+Confidence: ${Math.round(emotionData.confidence * 100)}%
+Coordinates: (${Math.round(emotionData.x)}, ${Math.round(emotionData.y)})
+Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
+    `;
+    
+    // You can customize this to show a nicer modal or send data somewhere
+    alert(`Emotion Detection Details:\n${details}`);
+    
+    // Optional: You could also send this data to your backend for logging
+    // logEmotionClick(emotionData);
+}
+
+
+// Add click event listener to canvas
+addEventListener('click', function(event) {
+    // Use client coordinates for click detection (box coords are in client space)
+    const clickClientX = event.clientX;
+    const clickClientY = event.clientY;
+
+    console.log(`Canvas clicked at client coords: (${clickClientX}, ${clickClientY})`);
+
+    // Check if click is inside any emotion box
+    for (let i = 0; i < currentEmotionBoxes.length; i++) {
+        const box = currentEmotionBoxes[i];
+        if (isPointInRect(clickClientX, clickClientY, box)) {
+            // Consume the event only when click lands inside a face box so underlying page
+            // doesn't receive the click. When click is outside boxes we do nothing and allow
+            // the event to propagate to the page.
+            handleEmotionBoxClick(box);
+            try {
+                event.stopPropagation();
+                event.preventDefault();
+            } catch (e) {
+                // ignore in case event isn't cancelable
+            }
+            break; // Only handle the first matching box
+        }
+    }
+});
+
+// Add hover effect to show pointer cursor only over emotion boxes
+addEventListener('mousemove', function(event) {
+    // Use client coords for hover detection so they match box coordinates
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+
+    // Update tracked mouse client position for draw-time checks
+    currentMouseClient.x = clientX;
+    currentMouseClient.y = clientY;
+
+    // Check if mouse is over any emotion box (client space)
+    let overBox = false;
+    for (let i = 0; i < currentEmotionBoxes.length; i++) {
+        const box = currentEmotionBoxes[i];
+        if (isPointInRect(clientX, clientY, box)) {
+            overBox = true;
+            break;
+        }
+    }
+
+    // If hovering a box, enable pointer events on the canvas so clicks are caught by it
+    // Otherwise disable pointer events so clicks pass through to the underlying page.
+    if (overBox) {
+        canvas.style.pointerEvents = "auto";
+        canvas.style.cursor = "pointer";
+    } else {
+        canvas.style.pointerEvents = "none";
+        canvas.style.cursor = "default";
+        // clear client mouse pos so draw logic knows there's no hover
+        currentMouseClient.x = null;
+        currentMouseClient.y = null;
+    }
+});
 
 
 // Add keyboard shortcut to trigger test capture
