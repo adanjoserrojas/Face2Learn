@@ -15,5 +15,5 @@
         "resources": ["overlay.css"],
         "matches": ["*://www.youtube.com/*"]
     }],
-    "permissions": ["scripting", "activeTab", "camera"]
+    "permissions": ["scripting", "activeTab"]
 }
