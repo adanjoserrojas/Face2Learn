@@ -83,10 +83,18 @@ def process_image(image_data):
         # Convert to grayscale for face detection (Haar cascade works better on grayscale)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces using Haar cascade classifier
-        # scaleFactor: How much the image size is reduced at each scale (1.3 = 30% reduction)
+        # Detect faces using Haar cascade classifier with more conservative settings
+        # scaleFactor: How much the image size is reduced at each scale (1.1 = 10% reduction)
         # minNeighbors: How many neighbors each candidate rectangle should have to retain it
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+        # minSize/maxSize: Filter out unreasonably small or large detections
+        faces = face_cascade.detectMultiScale(
+            gray, 
+            scaleFactor=1.1,     # More conservative scaling
+            minNeighbors=8,      # Higher neighbor requirement (was 6)
+            minSize=(30, 30),    # Minimum face size
+            maxSize=(300, 300),  # Maximum face size
+            flags=cv2.CASCADE_SCALE_IMAGE
+        )
         
         results = []
         for i, (x, y, w, h) in enumerate(faces):

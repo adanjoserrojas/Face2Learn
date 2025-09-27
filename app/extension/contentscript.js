@@ -61,7 +61,44 @@ async function getEmotionData() {
     }
 }
 
-// Function to draw emotion boxes
+// Function to process captured video frame for emotion detection
+async function processVideoFrame() {
+    try {
+        // Capture frame from video
+        const imageData = captureFrame();
+        
+        if (!imageData) {
+            console.log('No video found or unable to capture frame');
+            return [];
+        }
+
+        console.log('Captured frame, sending to emotion detection API');
+
+        // Send captured frame to emotion detection API
+        const response = await fetch(`${API_BASE_URL}/detect_emotions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Emotion detection results:', data);
+        return data.results || [];
+    } catch (error) {
+        console.error('Error processing video frame for emotion detection:', error);
+        return [];
+    }
+}
+
+// Function to draw emotion boxes with improved filtering
 function drawEmotionBoxes(results) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
@@ -69,20 +106,76 @@ function drawEmotionBoxes(results) {
         return;
     }
 
-    results.forEach(result => {
+    // Get video element to calculate scaling factors
+    const video = document.querySelector("video");
+    if (!video) {
+        console.log('No video element found for coordinate scaling');
+        return;
+    }
+
+    // Get video's position and size on the page
+    const videoRect = video.getBoundingClientRect();
+    
+    // Calculate scaling factors between native video resolution and displayed size
+    const scaleX = videoRect.width / video.videoWidth;
+    const scaleY = videoRect.height / video.videoHeight;
+    
+    console.log(`Video native: ${video.videoWidth}x${video.videoHeight}`);
+    console.log(`Video displayed: ${videoRect.width}x${videoRect.height}`);
+    console.log(`Scale factors: ${scaleX}, ${scaleY}`);
+
+    // Filter results by confidence threshold and reasonable size
+    const filteredResults = results.filter(result => {
+        const { confidence, bounding_box } = result;
+        const { width, height } = bounding_box;
+        
+        // Filter by confidence (only show results with >70% confidence)
+        if (confidence < 0.7) return false;
+        
+        // Filter by reasonable face size (avoid tiny false positives)
+        const minSize = 30; // minimum face size in pixels
+        const maxSize = Math.min(video.videoWidth, video.videoHeight) * 0.8; // max 80% of video size
+        
+        return width >= minSize && height >= minSize && 
+               width <= maxSize && height <= maxSize;
+    });
+
+    filteredResults.forEach((result, index) => {
         const { bounding_box, emotion, confidence } = result;
         const { x, y, width, height } = bounding_box;
         
-        // Draw bounding box
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
+        // Scale coordinates from native video resolution to displayed size
+        const scaledX = (x * scaleX) + videoRect.left;
+        const scaledY = (y * scaleY) + videoRect.top;
+        const scaledWidth = width * scaleX;
+        const scaledHeight = height * scaleY;
         
-        // Draw emotion label
+        // Use different colors for different confidence levels
+        let boxColor = "red";
+        if (confidence > 0.9) boxColor = "green";
+        else if (confidence > 0.8) boxColor = "orange";
+        
+        // Draw bounding box
+        ctx.strokeStyle = boxColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+        
+        // Draw emotion label with background for better readability
         const label = `${emotion} (${Math.round(confidence * 100)}%)`;
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        ctx.fillText(label, x, y - 5);
+        ctx.font = "14px Arial";
+        
+        // Measure text for background
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = 20;
+        
+        // Draw background for text
+        ctx.fillStyle = boxColor;
+        ctx.fillRect(scaledX, scaledY - textHeight - 5, textWidth + 10, textHeight);
+        
+        // Draw text
+        ctx.fillStyle = "white";
+        ctx.fillText(label, scaledX + 5, scaledY - 8);
     });
 }
 
@@ -92,5 +185,23 @@ async function processFrame() {
     drawEmotionBoxes(results);
 }
 
-// Start processing every 500ms for smooth animation
-setInterval(processFrame, 500);
+// Test processing function that uses real video capture
+async function testProcessFrame() {
+    const results = await processVideoFrame();
+    drawEmotionBoxes(results);
+}
+
+// Add keyboard shortcut to trigger test capture
+document.addEventListener('keydown', function(event) {
+    // Press 'T' key to trigger test emotion detection on video
+    if (event.key === 't' || event.key === 'T') {
+        console.log('Test capture triggered by user');
+        testProcessFrame();
+    }
+});
+
+// Start processing every 500ms for smooth animation (using mock data)
+// setInterval(processFrame, 500);
+
+// Uncomment the line below and comment the line above to use real video capture instead
+setInterval(testProcessFrame, 100);
