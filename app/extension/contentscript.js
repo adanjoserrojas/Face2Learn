@@ -1,16 +1,11 @@
 function captureFrame() {
     //Log the attempt to capture frame from video element.
     console.log("Attempting to capture frame from video element.");
-<<<<<<< HEAD
   const video = document.querySelector("video");
   if (!video) {
     console.log("No video element found");
     return null;
   }
-=======
-    const video = document.querySelector("video");
-  if (!video) return null;
->>>>>>> d788666633db1c9c1a71a780f8d0b499a51b7219
 
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
@@ -41,11 +36,7 @@ canvas.id = "face2learn-canvas";
 canvas.style.position = "fixed";
 canvas.style.top = "0";
 canvas.style.left = "0";
-<<<<<<< HEAD
 canvas.style.pointerEvents = "none"; // Disable click events
-=======
-canvas.style.pointerEvents = "none"; // Don't block page clicks by default
->>>>>>> d788666633db1c9c1a71a780f8d0b499a51b7219
 canvas.style.zIndex = "1000";
 canvas.style.cursor = "default";
 document.body.appendChild(canvas);
@@ -357,91 +348,6 @@ async function testProcessFrame() {
     }
 }
 
-<<<<<<< HEAD
-=======
-// Function to check if a point is inside a rectangle
-function isPointInRect(x, y, rect) {
-    return x >= rect.x && x <= rect.x + rect.width &&
-           y >= rect.y && y <= rect.y + rect.height;
-}
-
-// Function to handle emotion box clicks
-function handleEmotionBoxClick(emotionData) {
-    console.log('Emotion box clicked:', emotionData);
-    
-    // Create a detailed popup or alert with emotion information
-    const details = `
-Face ID: ${emotionData.face_id}
-Emotion: ${emotionData.emotion}
-Confidence: ${Math.round(emotionData.confidence * 100)}%
-Coordinates: (${Math.round(emotionData.x)}, ${Math.round(emotionData.y)})
-Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
-    `;
-    
-    // You can customize this to show a nicer modal or send data somewhere
-    alert(`Emotion Detection Details:\n${details}`);
-    
-    // Optional: You could also send this data to your backend for logging
-    // logEmotionClick(emotionData);
-}
-
-
-// Add click event listener to canvas
-addEventListener('click', function(event) {
-    // Compute click relative to the canvas
-    const rect = canvas.getBoundingClientRect();
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
-
-    console.log(`Canvas clicked at: (${clickX}, ${clickY})`);
-
-    // Check if click is inside any emotion box
-    for (let i = 0; i < currentEmotionBoxes.length; i++) {
-        const box = currentEmotionBoxes[i];
-        if (isPointInRect(clickX, clickY, box)) {
-            // Consume the event only when click lands inside a face box so underlying page
-            // doesn't receive the click. When click is outside boxes we do nothing and allow
-            // the event to propagate to the page.
-            handleEmotionBoxClick(box);
-            try {
-                event.stopPropagation();
-                event.preventDefault();
-            } catch (e) {
-                // ignore in case event isn't cancelable
-            }
-            break; // Only handle the first matching box
-        }
-    }
-});
-
-// Add hover effect to show pointer cursor only over emotion boxes
-addEventListener('mousemove', function(event) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-
-    // Check if mouse is over any emotion box
-    let overBox = false;
-    for (let i = 0; i < currentEmotionBoxes.length; i++) {
-        const box = currentEmotionBoxes[i];
-        if (isPointInRect(mouseX, mouseY, box)) {
-            overBox = true;
-            break;
-        }
-    }
-
-    // If hovering a box, enable pointer events on the canvas so clicks are caught by it
-    // Otherwise disable pointer events so clicks pass through to the underlying page.
-    if (overBox) {
-        canvas.style.pointerEvents = "auto";
-        canvas.style.cursor = "pointer";
-    } else {
-        canvas.style.pointerEvents = "none";
-        canvas.style.cursor = "default";
-    }
-});
-
->>>>>>> d788666633db1c9c1a71a780f8d0b499a51b7219
 
 // Add keyboard shortcut to trigger test capture
 document.addEventListener('keydown', function(event) {
