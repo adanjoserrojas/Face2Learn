@@ -1,3 +1,5 @@
+let VISUALON = true;
+
 function captureFrame() {
     //Log the attempt to capture a frame
     console.log("Attempting to capture frame from video element.");
@@ -38,6 +40,8 @@ const ctx = canvas.getContext("2d");
 
 // Store current emotion boxes for click detection
 let currentEmotionBoxes = [];
+// Track mouse position in client coordinates for hover detection
+let currentMouseClient = { x: null, y: null };
 
 function resizeCanvas() { 
     canvas.width = window.innerWidth;
@@ -173,27 +177,32 @@ function drawEmotionBoxes(results) {
         if (confidence > 0.9) boxColor = "green";
         else if (confidence > 0.8) boxColor = "orange";
         
-        // Draw bounding box
-        ctx.strokeStyle = boxColor;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
-        
-        // Draw emotion label with background for better readability
-        const label = `${emotion} (${Math.round(confidence * 100)}%)`;
-        ctx.font = "14px Arial";
-        
-        // Measure text for background
-        const textMetrics = ctx.measureText(label);
-        const textWidth = textMetrics.width;
-        const textHeight = 20;
-        
-        // Draw background for text
-        ctx.fillStyle = boxColor;
-        ctx.fillRect(scaledX, scaledY - textHeight - 5, textWidth + 10, textHeight);
-        
-        // Draw text
-        ctx.fillStyle = "white";
-        ctx.fillText(label, scaledX + 5, scaledY - 8);
+        // Draw bounding box only when hovered (use client coords for hover check)
+        const boxRect = { x: scaledX, y: scaledY, width: scaledWidth, height: scaledHeight };
+        const hovered = currentMouseClient.x !== null && isPointInRect(currentMouseClient.x, currentMouseClient.y, boxRect);
+        if (hovered || VISUALON) {
+            ctx.strokeStyle = boxColor;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+                    
+            // Draw emotion label with background for better readability
+            const label = `${emotion}`;
+            ctx.font = "14px Arial";
+            
+            // Measure text for background
+            const textMetrics = ctx.measureText(label);
+            const textWidth = textMetrics.width;
+            const textHeight = 20;
+            
+            // Draw background for text
+            ctx.fillStyle = boxColor;
+            ctx.fillRect(scaledX + (scaledWidth / 2) - (textWidth / 2) + (ctx.lineWidth / 2) - 1, scaledY - textHeight, textWidth + 2, textHeight + 2);
+            
+            // Draw text
+            ctx.fillStyle = "white";
+            ctx.fillText(label, scaledX + (scaledWidth / 2) - (textWidth / 2) + (ctx.lineWidth / 2), scaledY + 2);
+            }
     });
 }
 
@@ -238,17 +247,16 @@ Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
 
 // Add click event listener to canvas
 addEventListener('click', function(event) {
-    // Compute click relative to the canvas
-    const rect = canvas.getBoundingClientRect();
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
+    // Use client coordinates for click detection (box coords are in client space)
+    const clickClientX = event.clientX;
+    const clickClientY = event.clientY;
 
-    console.log(`Canvas clicked at: (${clickX}, ${clickY})`);
+    console.log(`Canvas clicked at client coords: (${clickClientX}, ${clickClientY})`);
 
     // Check if click is inside any emotion box
     for (let i = 0; i < currentEmotionBoxes.length; i++) {
         const box = currentEmotionBoxes[i];
-        if (isPointInRect(clickX, clickY, box)) {
+        if (isPointInRect(clickClientX, clickClientY, box)) {
             // Consume the event only when click lands inside a face box so underlying page
             // doesn't receive the click. When click is outside boxes we do nothing and allow
             // the event to propagate to the page.
@@ -266,15 +274,19 @@ addEventListener('click', function(event) {
 
 // Add hover effect to show pointer cursor only over emotion boxes
 addEventListener('mousemove', function(event) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
+    // Use client coords for hover detection so they match box coordinates
+    const clientX = event.clientX;
+    const clientY = event.clientY;
 
-    // Check if mouse is over any emotion box
+    // Update tracked mouse client position for draw-time checks
+    currentMouseClient.x = clientX;
+    currentMouseClient.y = clientY;
+
+    // Check if mouse is over any emotion box (client space)
     let overBox = false;
     for (let i = 0; i < currentEmotionBoxes.length; i++) {
         const box = currentEmotionBoxes[i];
-        if (isPointInRect(mouseX, mouseY, box)) {
+        if (isPointInRect(clientX, clientY, box)) {
             overBox = true;
             break;
         }
@@ -288,6 +300,9 @@ addEventListener('mousemove', function(event) {
     } else {
         canvas.style.pointerEvents = "none";
         canvas.style.cursor = "default";
+        // clear client mouse pos so draw logic knows there's no hover
+        currentMouseClient.x = null;
+        currentMouseClient.y = null;
     }
 });
 
