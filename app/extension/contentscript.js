@@ -29,11 +29,15 @@ canvas.id = "face2learn-canvas";
 canvas.style.position = "fixed";
 canvas.style.top = "0";
 canvas.style.left = "0";
-canvas.style.pointerEvents = "none";
+canvas.style.pointerEvents = "auto"; // Enable pointer events for clickable rectangles
 canvas.style.zIndex = "1000";
+canvas.style.cursor = "pointer";
 document.body.appendChild(canvas);
 
 const ctx = canvas.getContext("2d");
+
+// Store current emotion boxes for click detection
+let currentEmotionBoxes = [];
 
 function resizeCanvas() { 
     canvas.width = window.innerWidth;
@@ -140,6 +144,9 @@ function drawEmotionBoxes(results) {
                width <= maxSize && height <= maxSize;
     });
 
+    // Clear current boxes and store new ones for click detection
+    currentEmotionBoxes = [];
+    
     filteredResults.forEach((result, index) => {
         const { bounding_box, emotion, confidence } = result;
         const { x, y, width, height } = bounding_box;
@@ -149,6 +156,17 @@ function drawEmotionBoxes(results) {
         const scaledY = (y * scaleY) + videoRect.top;
         const scaledWidth = width * scaleX;
         const scaledHeight = height * scaleY;
+        
+        // Store box info for click detection
+        currentEmotionBoxes.push({
+            x: scaledX,
+            y: scaledY,
+            width: scaledWidth,
+            height: scaledHeight,
+            emotion: emotion,
+            confidence: confidence,
+            face_id: result.face_id || index
+        });
         
         // Use different colors for different confidence levels
         let boxColor = "red";
@@ -190,6 +208,70 @@ async function testProcessFrame() {
     const results = await processVideoFrame();
     drawEmotionBoxes(results);
 }
+
+// Function to check if a point is inside a rectangle
+function isPointInRect(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.width &&
+           y >= rect.y && y <= rect.y + rect.height;
+}
+
+// Function to handle emotion box clicks
+function handleEmotionBoxClick(emotionData) {
+    console.log('Emotion box clicked:', emotionData);
+    
+    // Create a detailed popup or alert with emotion information
+    const details = `
+Face ID: ${emotionData.face_id}
+Emotion: ${emotionData.emotion}
+Confidence: ${Math.round(emotionData.confidence * 100)}%
+Coordinates: (${Math.round(emotionData.x)}, ${Math.round(emotionData.y)})
+Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
+    `;
+    
+    // You can customize this to show a nicer modal or send data somewhere
+    alert(`Emotion Detection Details:\n${details}`);
+    
+    // Optional: You could also send this data to your backend for logging
+    // logEmotionClick(emotionData);
+}
+
+// Add click event listener to canvas
+canvas.addEventListener('click', function(event) {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    
+    console.log(`Canvas clicked at: (${clickX}, ${clickY})`);
+    
+    // Check if click is inside any emotion box
+    for (let i = 0; i < currentEmotionBoxes.length; i++) {
+        const box = currentEmotionBoxes[i];
+        if (isPointInRect(clickX, clickY, box)) {
+            handleEmotionBoxClick(box);
+            break; // Only handle the first matching box
+        }
+    }
+});
+
+// Add hover effect to show pointer cursor only over emotion boxes
+canvas.addEventListener('mousemove', function(event) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    // Check if mouse is over any emotion box
+    let overBox = false;
+    for (let i = 0; i < currentEmotionBoxes.length; i++) {
+        const box = currentEmotionBoxes[i];
+        if (isPointInRect(mouseX, mouseY, box)) {
+            overBox = true;
+            break;
+        }
+    }
+    
+    // Change cursor based on hover state
+    canvas.style.cursor = overBox ? "pointer" : "default";
+});
 
 // Add keyboard shortcut to trigger test capture
 document.addEventListener('keydown', function(event) {
