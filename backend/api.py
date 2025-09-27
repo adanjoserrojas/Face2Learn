@@ -15,6 +15,15 @@ import os
 import google.generativeai as genai
 from config import GEMINI_API_KEY, CONFIDENCE_THRESHOLD, MAX_FACES
 
+# Import MTCNN for better face detection
+try:
+    from mtcnn import MTCNN
+    USE_MTCNN = True
+    print("MTCNN available - using neural network face detection")
+except ImportError:
+    USE_MTCNN = False
+    print("MTCNN not available - using Haar cascade face detection")
+
 # Initialize Flask app with CORS enabled for Chrome extension
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Chrome extension communication
@@ -67,6 +76,77 @@ def create_model():
 model = create_model()
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')  # Haar cascade for face detection
 emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
+
+# Initialize MTCNN detector if available
+if USE_MTCNN:
+    mtcnn_detector = MTCNN()
+    print("MTCNN detector initialized successfully")
+else:
+    mtcnn_detector = None
+
+# MTCNN face detection function
+def detect_faces_mtcnn(rgb_image):
+    """
+    Detect faces using MTCNN neural network
+    
+    Args:
+        rgb_image: RGB image (numpy array)
+        
+    Returns:
+        list: List of (x, y, w, h) face rectangles with high confidence
+    """
+    try:
+        faces = mtcnn_detector.detect_faces(rgb_image)
+        face_boxes = []
+        
+        for face in faces:
+            x, y, w, h = face['box']
+            confidence = face['confidence']
+            
+            # Lower confidence threshold for better detection
+            print(f"MTCNN face detected with confidence: {confidence}")
+            if confidence > 0.7:  # Lowered from 0.8 to 0.7
+                # Ensure coordinates are positive and within image bounds
+                x = max(0, x)
+                y = max(0, y)
+                w = min(w, rgb_image.shape[1] - x)
+                h = min(h, rgb_image.shape[0] - y)
+                
+                if w > 0 and h > 0:  # Valid face box
+                    face_boxes.append((x, y, w, h))
+                    print(f"Added face: ({x}, {y}, {w}, {h})")
+        
+        print(f"MTCNN detected {len(face_boxes)} faces (confidence > 0.7)")
+        return face_boxes
+        
+    except Exception as e:
+        print(f"MTCNN detection error: {e}")
+        return []
+
+# Haar cascade face detection function (optimized)
+def detect_faces_optimized(gray_image):
+    """
+    Optimized Haar cascade face detection on grayscale image
+    
+    Args:
+        gray_image: Grayscale image for face detection
+        
+    Returns:
+        list: List of (x, y, w, h) face rectangles
+    """
+    
+    # Haar cascade detection with optimized parameters
+    faces_frontal = face_cascade.detectMultiScale(
+        gray_image,
+        scaleFactor=1.1,
+        minNeighbors=8,
+        minSize=(30, 30),
+        maxSize=(300, 300),
+        flags=cv2.CASCADE_SCALE_IMAGE
+    )
+    
+    # Convert to list and return
+    return list(faces_frontal)
 
 def get_fallback_educational_content(emotion, confidence):
     """
@@ -255,53 +335,55 @@ def process_image(image_data):
               Each result includes face_id, emotion, confidence, and bounding box coordinates
     """
     try:
-        # Debug: Log image data info
-        print(f"Image data length: {len(image_data)}")
-        print(f"Image data starts with: {image_data[:50]}...")
-        
         # Decode base64 image data
         # Split on comma to remove data URL prefix and get just the base64 data
-        if ',' in image_data:
-            base64_part = image_data.split(',')[1]
-            print(f"Base64 part length: {len(base64_part)}")
-            image_bytes = base64.b64decode(base64_part)
-        else:
-            image_bytes = base64.b64decode(image_data)
-        
-        print(f"Decoded image bytes length: {len(image_bytes)}")
-        
-        # Try to open the image with PIL
-        try:
-            image = Image.open(io.BytesIO(image_bytes))
-            # Convert to RGB if necessary (handles RGBA, P, etc.)
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-        except Exception as pil_error:
-            print(f"PIL error: {pil_error}")
-            # Fallback: try to decode directly with OpenCV
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if frame is None:
-                raise ValueError("Could not decode image with either PIL or OpenCV")
-        else:
-            # Convert PIL image to OpenCV format
-            frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        image_bytes = base64.b64decode(image_data.split(',')[1])
+        image = Image.open(io.BytesIO(image_bytes))
+        frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
         # Convert to grayscale for face detection (Haar cascade works better on grayscale)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces using Haar cascade classifier with more conservative settings
-        # scaleFactor: How much the image size is reduced at each scale (1.1 = 10% reduction)
-        # minNeighbors: How many neighbors each candidate rectangle should have to retain it
-        # minSize/maxSize: Filter out unreasonably small or large detections
-        faces = face_cascade.detectMultiScale(
-            gray, 
-            scaleFactor=1.1,     # More conservative scaling
-            minNeighbors=8,      # Higher neighbor requirement (was 6)
-            minSize=(30, 30),    # Minimum face size
-            maxSize=(300, 300),  # Maximum face size
-            flags=cv2.CASCADE_SCALE_IMAGE
-        )
+        # Enhance image preprocessing for better face detection
+        # Apply histogram equalization to improve contrast
+        gray = cv2.equalizeHist(gray)
+        
+        # Use different detection methods based on availability
+        faces = []
+        detection_method = ""
+        
+        # Try MTCNN first if available (works better on original RGB image)
+        if USE_MTCNN and mtcnn_detector is not None:
+            try:
+                # Convert BGR to RGB for MTCNN
+                rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                faces = detect_faces_mtcnn(rgb_image)
+                detection_method = "MTCNN neural network"
+                
+            except Exception as e:
+                print(f"MTCNN failed: {e}, falling back to Haar cascade")
+                faces = detect_faces_optimized(gray)
+                detection_method = "Haar cascade (fallback)"
+
+        
+        print(f"Detected {len(faces)} faces using {detection_method}")
+        
+        if len(faces) == 0:
+            print("No faces detected - trying fallback with lower MTCNN threshold")
+            if USE_MTCNN and mtcnn_detector is not None:
+                try:
+                    rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    fallback_faces = mtcnn_detector.detect_faces(rgb_image)
+                    print(f"MTCNN fallback found {len(fallback_faces)} faces with any confidence")
+                    for face in fallback_faces:
+                        conf = face['confidence']
+                        print(f"  Face confidence: {conf}")
+                        if conf > 0.5:  # Very low threshold
+                            x, y, w, h = face['box']
+                            faces.append((x, y, w, h))
+                    print(f"Added {len(faces)} faces with confidence > 0.5")
+                except Exception as e:
+                    print(f"Fallback detection failed: {e}")
         
         results = []
         for i, (x, y, w, h) in enumerate(faces):
@@ -310,7 +392,11 @@ def process_image(image_data):
             
             # Resize face to 48x48 pixels (model input size) and add batch dimension
             # Model expects shape: (batch_size, 48, 48, 1)
-            cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
+            resized_roi = cv2.resize(roi_gray, (48, 48))
+            cropped_img = np.expand_dims(np.expand_dims(resized_roi, -1), 0)
+            
+            # Ensure correct data type and normalization
+            cropped_img = cropped_img.astype('float32') / 255.0
             
             # Predict emotion using the trained model
             prediction = model.predict(cropped_img, verbose=0)
@@ -345,9 +431,6 @@ def process_image(image_data):
     
     except Exception as e:
         print(f"Error processing frame: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
         return []
     
 @app.route('/detect_emotions', methods=['POST'])

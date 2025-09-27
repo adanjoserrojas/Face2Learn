@@ -477,4 +477,4 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 100);
+setInterval(testProcessFrame, 300);
