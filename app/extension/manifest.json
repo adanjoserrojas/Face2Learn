@@ -15,5 +15,8 @@
         "resources": ["overlay.css"],
         "matches": ["*://www.youtube.com/*"]
     }],
-    "permissions": ["scripting", "activeTab", "camera"]
+    "permissions": ["scripting", "activeTab", "camera"],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;"
+    }
 }
