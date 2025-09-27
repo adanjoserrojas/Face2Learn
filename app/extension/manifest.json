@@ -1,0 +1,9 @@
+{
+    "name": "Face2Learn",
+    "version": "1.0",
+    "description": "A Chrome extension that uses AI to generate educational content from images.",
+    "manifest_version": 3,
+    "action": {
+        "default_popup": "index.html"
+    }
+}
