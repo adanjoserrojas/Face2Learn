@@ -5,5 +5,15 @@
     "manifest_version": 3,
     "action": {
         "default_popup": "index.html"
-    }
+    },
+    "content_scripts": [{
+        "matches": ["*://www.youtube.com/*"],
+        "js": ["contentscript.js"],
+        "css": ["overlay.css"]
+    }],
+    "web_accessible_resources": [{
+        "resources": ["overlay.css"],
+        "matches": ["*://www.youtube.com/*"]
+    }],
+    "permissions": ["scripting", "activeTab"]
 }
