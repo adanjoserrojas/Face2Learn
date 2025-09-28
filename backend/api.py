@@ -24,6 +24,37 @@ except ImportError:
     USE_MTCNN = False
     print("MTCNN not available - using Haar cascade face detection")
 
+# Check for OpenCV DNN face detection model files
+import urllib.request
+DNN_MODEL_FILES = {
+    'prototxt': 'opencv_face_detector.pbtxt',
+    'caffemodel': 'opencv_face_detector.caffemodel'
+}
+
+# URLs for downloading DNN models if not present
+DNN_MODEL_URLS = {
+    'prototxt': 'https://raw.githubusercontent.com/opencv/opencv_extra/master/testdata/dnn/opencv_face_detector.pbtxt',
+    'caffemodel': 'https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/opencv_face_detector.caffemodel'
+}
+
+# Check if DNN models are available
+USE_DNN = True
+for file_type, filename in DNN_MODEL_FILES.items():
+    if not os.path.exists(filename):
+        print(f"DNN model file {filename} not found. Downloading...")
+        try:
+            urllib.request.urlretrieve(DNN_MODEL_URLS[file_type], filename)
+            print(f"Downloaded {filename}")
+        except Exception as e:
+            print(f"Failed to download {filename}: {e}")
+            USE_DNN = False
+            break
+
+if USE_DNN:
+    print("OpenCV DNN face detection available")
+else:
+    print("OpenCV DNN face detection not available - missing model files")
+
 # Initialize Flask app with CORS enabled for Chrome extension
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Chrome extension communication
@@ -83,6 +114,73 @@ if USE_MTCNN:
     print("MTCNN detector initialized successfully")
 else:
     mtcnn_detector = None
+
+# Initialize OpenCV DNN detector if available
+if USE_DNN:
+    try:
+        dnn_net = cv2.dnn.readNetFromTensorflow(DNN_MODEL_FILES['caffemodel'], DNN_MODEL_FILES['prototxt'])
+        print("OpenCV DNN detector initialized successfully")
+    except Exception as e:
+        print(f"Failed to initialize DNN detector: {e}")
+        USE_DNN = False
+        dnn_net = None
+else:
+    dnn_net = None
+
+# OpenCV DNN face detection function
+def detect_faces_dnn(image):
+    """
+    Detect faces using OpenCV DNN face detection
+    
+    Args:
+        image: BGR image (numpy array)
+        
+    Returns:
+        list: List of (x, y, w, h) face rectangles with high confidence
+    """
+    try:
+        h, w = image.shape[:2]
+        
+        # Create blob from image
+        # Input size for the DNN model is 300x300
+        blob = cv2.dnn.blobFromImage(image, 1.0, (300, 300), [104, 117, 123])
+        
+        # Set input to the network
+        dnn_net.setInput(blob)
+        
+        # Run forward pass to get detections
+        detections = dnn_net.forward()
+        
+        face_boxes = []
+        
+        # Process detections
+        for i in range(detections.shape[2]):
+            confidence = detections[0, 0, i, 2]
+            
+            # Filter out weak detections
+            if confidence > 0.7:  # Confidence threshold
+                # Get bounding box coordinates
+                x1 = int(detections[0, 0, i, 3] * w)
+                y1 = int(detections[0, 0, i, 4] * h)
+                x2 = int(detections[0, 0, i, 5] * w)
+                y2 = int(detections[0, 0, i, 6] * h)
+                
+                # Convert to (x, y, width, height) format
+                x = max(0, x1)
+                y = max(0, y1)
+                width = min(x2 - x1, w - x)
+                height = min(y2 - y1, h - y)
+                
+                if width > 0 and height > 0:
+                    face_boxes.append((x, y, width, height))
+                    print(f"DNN face detected with confidence: {confidence:.2f} at ({x}, {y}, {width}, {height})")
+        
+        print(f"OpenCV DNN detected {len(face_boxes)} faces (confidence > 0.7)")
+        return face_boxes
+        
+    except Exception as e:
+        print(f"DNN detection error: {e}")
+        return []
 
 # MTCNN face detection function
 def detect_faces_mtcnn(rgb_image):
@@ -348,11 +446,11 @@ def process_image(image_data):
         # Apply histogram equalization to improve contrast
         gray = cv2.equalizeHist(gray)
         
-        # Use different detection methods based on availability
+        # Use different detection methods based on availability (in order of preference)
         faces = []
         detection_method = ""
         
-        # Try MTCNN first if available (works better on original RGB image)
+        # Try MTCNN first if available (best accuracy)
         if USE_MTCNN and mtcnn_detector is not None:
             try:
                 # Convert BGR to RGB for MTCNN
@@ -360,16 +458,54 @@ def process_image(image_data):
                 faces = detect_faces_mtcnn(rgb_image)
                 detection_method = "MTCNN neural network"
                 
+                if len(faces) == 0:
+                    print("MTCNN found no faces, trying OpenCV DNN")
+                    if USE_DNN and dnn_net is not None:
+                        faces = detect_faces_dnn(frame)
+                        detection_method = "OpenCV DNN (MTCNN fallback)"
+                
             except Exception as e:
-                print(f"MTCNN failed: {e}, falling back to Haar cascade")
+                print(f"MTCNN failed: {e}, trying OpenCV DNN")
+                if USE_DNN and dnn_net is not None:
+                    try:
+                        faces = detect_faces_dnn(frame)
+                        detection_method = "OpenCV DNN (MTCNN error fallback)"
+                    except Exception as dnn_e:
+                        print(f"DNN also failed: {dnn_e}, falling back to Haar cascade")
+                        faces = detect_faces_optimized(gray)
+                        detection_method = "Haar cascade (both neural networks failed)"
+                else:
+                    faces = detect_faces_optimized(gray)
+                    detection_method = "Haar cascade (MTCNN failed, no DNN)"
+        
+        # If MTCNN is not available, try OpenCV DNN
+        elif USE_DNN and dnn_net is not None:
+            try:
+                faces = detect_faces_dnn(frame)
+                detection_method = "OpenCV DNN"
+                
+                if len(faces) == 0:
+                    print("OpenCV DNN found no faces, falling back to Haar cascade")
+                    faces = detect_faces_optimized(gray)
+                    detection_method = "Haar cascade (DNN fallback)"
+                    
+            except Exception as e:
+                print(f"OpenCV DNN failed: {e}, falling back to Haar cascade")
                 faces = detect_faces_optimized(gray)
-                detection_method = "Haar cascade (fallback)"
+                detection_method = "Haar cascade (DNN failed)"
+        
+        # Final fallback to Haar cascade
+        else:
+            faces = detect_faces_optimized(gray)
+            detection_method = "Haar cascade"
 
         
         print(f"Detected {len(faces)} faces using {detection_method}")
         
         if len(faces) == 0:
-            print("No faces detected - trying fallback with lower MTCNN threshold")
+            print("No faces detected - trying fallback with lower thresholds")
+            
+            # Try MTCNN with lower threshold
             if USE_MTCNN and mtcnn_detector is not None:
                 try:
                     rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -377,13 +513,44 @@ def process_image(image_data):
                     print(f"MTCNN fallback found {len(fallback_faces)} faces with any confidence")
                     for face in fallback_faces:
                         conf = face['confidence']
-                        print(f"  Face confidence: {conf}")
+                        print(f"  MTCNN Face confidence: {conf}")
                         if conf > 0.5:  # Very low threshold
                             x, y, w, h = face['box']
                             faces.append((x, y, w, h))
-                    print(f"Added {len(faces)} faces with confidence > 0.5")
+                    print(f"MTCNN fallback added {len(faces)} faces with confidence > 0.5")
                 except Exception as e:
-                    print(f"Fallback detection failed: {e}")
+                    print(f"MTCNN fallback detection failed: {e}")
+            
+            # If still no faces, try DNN with lower threshold
+            if len(faces) == 0 and USE_DNN and dnn_net is not None:
+                try:
+                    print("Trying DNN fallback with lower confidence threshold")
+                    h, w = frame.shape[:2]
+                    blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), [104, 117, 123])
+                    dnn_net.setInput(blob)
+                    detections = dnn_net.forward()
+                    
+                    for i in range(detections.shape[2]):
+                        confidence = detections[0, 0, i, 2]
+                        print(f"  DNN Face confidence: {confidence}")
+                        
+                        if confidence > 0.5:  # Lower threshold for fallback
+                            x1 = int(detections[0, 0, i, 3] * w)
+                            y1 = int(detections[0, 0, i, 4] * h)
+                            x2 = int(detections[0, 0, i, 5] * w)
+                            y2 = int(detections[0, 0, i, 6] * h)
+                            
+                            x = max(0, x1)
+                            y = max(0, y1)
+                            width = min(x2 - x1, w - x)
+                            height = min(y2 - y1, h - y)
+                            
+                            if width > 0 and height > 0:
+                                faces.append((x, y, width, height))
+                    
+                    print(f"DNN fallback added {len(faces)} faces with confidence > 0.5")
+                except Exception as e:
+                    print(f"DNN fallback detection failed: {e}")
         
         results = []
         for i, (x, y, w, h) in enumerate(faces):
