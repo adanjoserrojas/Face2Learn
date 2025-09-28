@@ -29,10 +29,42 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Handle screenshot button click
-  screenshotBtn.addEventListener('click', () => {
-    // You can implement screenshot functionality here
+  screenshotBtn.addEventListener('click', async () => {
     console.log('Screenshot button clicked!');
-    // Add your screenshot logic here
+    
+    try {
+      const tab = await getActiveTab();
+      if (!tab) { 
+        showNoImage('No active tab'); 
+        return; 
+      }
+
+      // First try to send capture message to existing content script
+      let res = await sendCaptureMessage(tab.id);
+      
+      if (res && res.image) {
+        setThumbnail(res.image);
+        console.log('Screenshot captured successfully');
+      } else {
+        // Try injecting the content script then request again
+        try {
+          await injectContentScript(tab.id);
+          res = await sendCaptureMessage(tab.id);
+          if (res && res.image) {
+            setThumbnail(res.image);
+            console.log('Screenshot captured successfully after injection');
+          } else {
+            showNoImage('No video found on page');
+          }
+        } catch (e) {
+          console.warn('Injection or capture failed', e);
+          showNoImage('Capture failed');
+        }
+      }
+    } catch (error) {
+      console.error('Screenshot error:', error);
+      showNoImage('Screenshot failed');
+    }
   });
 
   function setThumbnail(dataUrl) {
@@ -59,36 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (message) placeholder.textContent = message;
     else placeholder.textContent = 'No snapshot yet';
     hidePrompts();
-    
-    // Reset analyze button
-    analyzeBtn.disabled = true;
-    analyzeBtn.textContent = '🧠 Analyze';
   }
 
   function displayPrompts(prompts) {
     currentPrompts = prompts;
-    const promptsSection = document.getElementById('prompts-section');
-    const promptsContent = document.getElementById('prompts-content');
-    
-    if (!prompts || prompts.length === 0) {
-      hidePrompts();
-      return;
-    }
-    
-    promptsContent.innerHTML = prompts.map(prompt => `
-      <div class="mb-3 p-2 bg-white rounded border-l-4 border-blue-400">
-        <div class="font-medium text-gray-800 text-xs mb-1">${prompt.title}</div>
-        <div class="text-xs text-gray-500 mb-1">Confidence: ${Math.round(prompt.confidence * 100)}%</div>
-        <div class="text-xs text-gray-700">${prompt.content}</div>
-      </div>
-    `).join('');
-    
-    promptsSection.classList.remove('hidden');
+    // Prompts functionality removed - no UI elements exist for this
+    console.log('Prompts received:', prompts);
   }
 
   function hidePrompts() {
-    const promptsSection = document.getElementById('prompts-section');
-    promptsSection.classList.add('hidden');
+    // Prompts functionality removed - no UI elements exist for this
   }
 
   function getActiveTab() {
@@ -173,120 +185,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  captureBtn.addEventListener('click', async () => {
-    captureBtn.disabled = true;
-    captureBtn.textContent = 'Capturing...';
-    analyzeBtn.disabled = true;
-    
-    try {
-      const tab = await getActiveTab();
-      if (!tab) { showNoImage('No active tab'); return; }
-
-      let res = await sendCaptureMessage(tab.id);
-      if (res && res.image) {
-        setThumbnail(res.image);
-        // Detect emotions in the captured image
-        const emotionData = await detectEmotions(res.image);
-        currentEmotionResults = emotionData.results;
-        
-        if (emotionData.results.length > 0) {
-          analyzeBtn.disabled = false;
-          analyzeBtn.textContent = `🧠 Analyze (${emotionData.results.length} emotions)`;
-        } else {
-          analyzeBtn.disabled = true;
-          analyzeBtn.textContent = '🧠 Analyze';
-        }
-        
-        // Show basic emotion detection results
-        displayPrompts(emotionData.educational_prompts);
-      } else {
-        // Try injecting the content script then request again
-        try {
-          await injectContentScript(tab.id);
-          res = await sendCaptureMessage(tab.id);
-          if (res && res.image) {
-            setThumbnail(res.image);
-            // Detect emotions in the captured image
-            const emotionData = await detectEmotions(res.image);
-            currentEmotionResults = emotionData.results;
-            
-            if (emotionData.results.length > 0) {
-              analyzeBtn.disabled = false;
-              analyzeBtn.textContent = `🧠 Analyze (${emotionData.results.length} emotions)`;
-            } else {
-              analyzeBtn.disabled = true;
-              analyzeBtn.textContent = '🧠 Analyze';
-            }
-            
-            // Show basic emotion detection results
-            displayPrompts(emotionData.educational_prompts);
-          } else {
-            showNoImage('No video found on page');
-          }
-        } catch (e) {
-          console.warn('Injection or capture failed', e);
-          showNoImage('Capture failed');
-        }
-      }
-    } finally {
-      captureBtn.disabled = false;
-      captureBtn.textContent = 'Capture';
-    }
-  });
-
-  analyzeBtn.addEventListener('click', async () => {
-    if (!currentDataUrl || !currentEmotionResults || currentEmotionResults.length === 0) {
-      showNoImage('No emotions detected. Please capture first.');
-      return;
-    }
-
-    analyzeBtn.disabled = true;
-    analyzeBtn.textContent = 'Analyzing...';
-    
-    try {
-      // Get Gemini analysis for the first detected emotion
-      const firstEmotion = currentEmotionResults[0];
-      const geminiPrompt = await getGeminiAnalysis(
-        currentDataUrl, 
-        firstEmotion.emotion, 
-        firstEmotion.confidence
-      );
-      
-      if (geminiPrompt) {
-        displayPrompts([geminiPrompt]);
-      } else {
-        showNoImage('Analysis failed. Please try again.');
-      }
-    } catch (error) {
-      console.error('Analysis error:', error);
-      showNoImage('Analysis failed. Please try again.');
-    } finally {
-      analyzeBtn.disabled = false;
-      analyzeBtn.textContent = `🧠 Analyze (${currentEmotionResults.length} emotions)`;
-    }
-  });
-
-  openBtn.addEventListener('click', () => {
-    if (!currentDataUrl) return showNoImage('No snapshot to open');
-    // Open data URL in a new tab
-    try {
-      chrome.tabs.create({ url: currentDataUrl });
-    } catch (e) {
-      // Fallback
-      window.open(currentDataUrl, '_blank');
-    }
-  });
-
-  downloadBtn.addEventListener('click', () => {
-    if (!currentDataUrl) return showNoImage('No snapshot to download');
-    const a = document.createElement('a');
-    a.href = currentDataUrl;
-    a.download = 'face2learn-snapshot.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  });
-
-  // Initial state
   showNoImage();
 });

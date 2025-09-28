@@ -336,7 +336,7 @@ async function processFrame() {
 
 // Test processing function that uses real video capture
 async function testProcessFrame() {
-    console.log('testProcessFrame called');
+    console.log('testProcessFrame called, VISUALON:', VISUALON);
     try {
         const data = await processVideoFrame();
         console.log('testProcessFrame data:', data);
@@ -477,4 +477,4 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 100);
+setInterval(testProcessFrame, 400);
