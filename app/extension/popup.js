@@ -136,15 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hidePrompts();
   }
 
-  function displayPrompts(prompts) {
-    currentPrompts = prompts;
-    // Prompts functionality removed - no UI elements exist for this
-    console.log('Prompts received:', prompts);
-  }
 
-  function hidePrompts() {
-    // Prompts functionality removed - no UI elements exist for this
-  }
 
   function getActiveTab() {
     return new Promise((resolve) => {

@@ -4,40 +4,37 @@ let rectanglesVisible = true;
 
 console.log("Content Script Initialized");
 
-setInterval(testProcessFrame, 500);
+setInterval(testProcessFrame, 700);
 
 /*
 rectanglesVisible.addListener(() => {
     console.log("Rectangles visibility changed:", rectanglesVisible);
-});*/
+});
+*/
 
 function captureFrame() {
-    //Log the attempt to capture a frame
     console.log("Attempting to capture frame from video element.");
-  const video = document.querySelector("video");
-  if (!video) {
-    console.log("No video element found");
+        const video = document.querySelector("video");
+    if (!video) {
+        console.log("No video element found");
     return null;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  const dataURL = canvas.toDataURL("image/jpeg", 0.8); // Use JPEG with compression
-  console.log("Captured frame data URL length:", dataURL.length);
-  console.log("Data URL starts with:", dataURL.substring(0, 50));
-  
-  return dataURL;
+}
+    const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL("image/jpeg", 0.8); // Use JPEG with compression
+    console.log("Captured frame data URL length:", dataURL.length);
+        console.log("Data URL starts with:", dataURL.substring(0, 50));
+return dataURL;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === "capture") {
+if (msg.action === "capture") {
     console.log("Received capture request from extension.");
     sendResponse({ image: captureFrame() });
-  }
+}
 });console.log("face2learn content script loaded");
 
 // API Configuration
@@ -67,28 +64,6 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
-
-// Note: Gemini analysis button moved to extension popup UI
-
-// Note: Gemini analysis functionality moved to extension popup UI
-
-// Test canvas functionality on load
-setTimeout(() => {
-    console.log('Testing canvas functionality...');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(50, 50, 150, 100);
-    ctx.fillStyle = "blue";
-    ctx.font = "14px Arial";
-    ctx.fillText("Canvas Test - Face2Learn Active", 60, 70);
-    
-    // Clear test rectangle after 3 seconds
-    setTimeout(() => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        console.log('Canvas test completed');
-    }, 3000);
-}, 1000);
 
 // Function to get emotion data from API
 async function getEmotionData() {
@@ -155,10 +130,7 @@ async function processVideoFrame() {
 function drawEmotionBoxes(results) {
     console.log('drawEmotionBoxes called with results:', results);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    //ctx.strokeStyle = "white";
-    //ctx.lineWidth = 10;
-    //ctx.fillText(geminiAdvice, 500, 500);
-    
+
     if (!results || results.length === 0) {
         console.log('No results to draw, clearing canvas');
         return;
@@ -195,7 +167,7 @@ function drawEmotionBoxes(results) {
         const maxSize = Math.min(video.videoWidth, video.videoHeight) * 0.8; // max 80% of video size
         
         return width >= minSize && height >= minSize && 
-               width <= maxSize && height <= maxSize;
+            width <= maxSize && height <= maxSize;
     });
 
     // Clear current boxes and store new ones for click detection
@@ -334,20 +306,6 @@ function displayEducationalPrompts(prompts) {
     
     promptContainer.appendChild(closeBtn);
     document.body.appendChild(promptContainer);
-    
-    /*// Auto-remove after 10 seconds
-    setTimeout(() => {
-        if (promptContainer.parentNode) {
-            promptContainer.remove();
-        }
-    }, 100000000); */
-}
-
-// Main processing function
-async function processFrame() {
-    const data = await getEmotionData();
-    console.log('ProcessFrame data:', data);
-    drawEmotionBoxes(data.results || data);
 }
 
 // Test processing function that uses real video capture
@@ -371,13 +329,13 @@ async function testProcessFrame() {
         drawEmotionBoxes([]);
         window.currentEmotionResults = [];
     }
-}
 
+}
 
 // Function to check if a point is inside a rectangle
 function isPointInRect(x, y, rect) {
     return x >= rect.x && x <= rect.x + rect.width &&
-           y >= rect.y && y <= rect.y + rect.height;
+        y >= rect.y && y <= rect.y + rect.height;
 }
 
 // Function to handle emotion box clicks
@@ -404,9 +362,6 @@ Confidence: ${Math.round(emotionData.confidence * 100)}%
 Coordinates: (${Math.round(emotionData.x)}, ${Math.round(emotionData.y)})
 Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
     `;
-    
-        // Show basic details first
-    //try { alert(`Emotion Detection Details:\n${details}`); } catch (e) { /* ignore */ }
 
 // Loading Container
     const promptContainer = document.createElement('div');
@@ -445,7 +400,7 @@ Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
         height: 24px;
         border-radius: 50%;
         display: flex;
-        align-items: right;
+        align-items: flex-end;
         justify-content: center;
         color: #3d348b
     `;
@@ -503,45 +458,12 @@ Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
                 console.warn('displayEducationalPrompts failed:', e);
             }
 
-            //try { alert(`Learning Guidance:\n\n${prompt.title}\n\n${prompt.content}`); } catch (e) { /* ignore */ }
         } else {
             console.warn('No prompt returned from backend');
         }
     } catch (e) {
         console.error('Error fetching Gemini prompt:', e);
     }
-
-
-    // Optional: You could also send this data to your backend for logging
-    // logEmotionClick(emotionData);
-}
-
-async function geminiAdviceWithImage(imageData, emotionData, confidenceData) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/generate_prompt_from_image`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                image: imageData,
-                emotion: emotionData,
-                confidence: confidenceData,
-                context: " "
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        // API returns { success: true, prompt: {...} }
-        return data.prompt || null;
-    } catch (error) {
-        console.error('Error calling emotion detection API:', error);
-        return [];
-    }
 }
 
 async function geminiAdviceWithoutImage(emotion, confidence) {
@@ -583,24 +505,6 @@ async function geminiAdviceWithImage(imageData, emotionData, confidenceData) {
 
         const data = await response.json();
         // API returns { success: true, prompt: {...} }
-        return data.prompt || null;
-    } catch (error) {
-        console.error('Error calling emotion detection API:', error);
-        return [];
-    }
-}
-
-async function geminiAdviceWithoutImage(emotion, confidence) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/generate_prompt`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ emotion: emotion, confidence: confidence, context: 'User requested guidance' })
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-        const data = await response.json();
         return data.prompt || null;
     } catch (error) {
         console.error('Error calling emotion detection API:', error);
@@ -731,41 +635,3 @@ addEventListener('mousemove', function(event) {
 });
 
 
-// Add keyboard shortcut to trigger test capture
-document.addEventListener('keydown', function(event) {
-    // Press 'T' key to trigger test emotion detection on video
-    if (event.key === 't' || event.key === 'T') {
-        console.log('Test capture triggered by user');
-        testProcessFrame();
-    }
-    
-    // Press 'E' key to test getEmotionData API and update popup
-    if (event.key === 'e' || event.key === 'E') {
-        console.log('Testing getEmotionData API and updating popup');
-        updateEmotionFromAPI();
-    }
-    
-    // Press 'R' key to draw a test rectangle
-    if (event.key === 'r' || event.key === 'R') {
-        console.log('Drawing test rectangle');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(100, 100, 200, 150);
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        ctx.fillText("Test Rectangle - Canvas Working!", 110, 120);
-    }
-    
-    // Press 'C' key to clear loading indicator (emergency stop)
-    if (event.key === 'c' || event.key === 'C') {
-        console.log('Clearing loading indicator');
-        hideLoadingIndicator();
-        showNotification('Loading indicator cleared', 'info');
-    }
-});
-
-// Start processing every 500ms for smooth animation (using mock data)
-// setInterval(processFrame, 500);
-
-// Uncomment the line below and comment the line above to use real video capture instead

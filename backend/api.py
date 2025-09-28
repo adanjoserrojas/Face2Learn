@@ -263,9 +263,7 @@ def detect_faces_optimized(gray_image):
         except Exception as e:
             print(f"Very sensitive detection failed: {e}")
     
-    if len(all_faces) > 0:
-        return list(all_faces)
-    else:
+    if len(all_faces) == 0:
         print("All detection approaches failed to find faces")
         return []
     
@@ -546,53 +544,7 @@ def process_image(image_data):
         
         if len(faces) == 0:
             print("No faces detected - trying fallback with lower thresholds")
-            
-            # Try MTCNN with lower threshold
-            if USE_MTCNN and mtcnn_detector is None:
-                try:
-                    rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    fallback_faces = mtcnn_detector.detect_faces(rgb_image)
-                    print(f"MTCNN fallback found {len(fallback_faces)} faces with any confidence")
-                    for face in fallback_faces:
-                        conf = face['confidence']
-                        print(f"  MTCNN Face confidence: {conf}")
-                        if conf > 0.5:  # Very low threshold
-                            x, y, w, h = face['box']
-                            faces.append((x, y, w, h))
-                    print(f"MTCNN fallback added {len(faces)} faces with confidence > 0.5")
-                except Exception as e:
-                    print(f"MTCNN fallback detection failed: {e}")
-            
-            # If still no faces, try DNN with lower threshold
-            if len(faces) == 0 and USE_DNN and dnn_net is not None:
-                try:
-                    print("Trying DNN fallback with lower confidence threshold")
-                    h, w = frame.shape[:2]
-                    blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), [104, 117, 123])
-                    dnn_net.setInput(blob)
-                    detections = dnn_net.forward()
-                    
-                    for i in range(detections.shape[2]):
-                        confidence = detections[0, 0, i, 2]
-                        print(f"  DNN Face confidence: {confidence}")
-                        
-                        if confidence > 0.5:  # Lower threshold for fallback
-                            x1 = int(detections[0, 0, i, 3] * w)
-                            y1 = int(detections[0, 0, i, 4] * h)
-                            x2 = int(detections[0, 0, i, 5] * w)
-                            y2 = int(detections[0, 0, i, 6] * h)
-                            
-                            x = max(0, x1)
-                            y = max(0, y1)
-                            width = min(x2 - x1, w - x)
-                            height = min(y2 - y1, h - y)
-                            
-                            if width > 0 and height > 0:
-                                faces.append((x, y, width, height))
-                    
-                    print(f"DNN fallback added {len(faces)} faces with confidence > 0.5")
-                except Exception as e:
-                    print(f"DNN fallback detection failed: {e}")
+      
         
         results = []
         for i, (x, y, w, h) in enumerate(faces):
