@@ -1,5 +1,10 @@
 let VISUALON = true;
 
+const rectanglesVisible = new Bool(true);
+rectanglesVisible.addListener(() => {
+    console.log("Rectangles visibility changed:", rectanglesVisible);
+});
+
 function captureFrame() {
     //Log the attempt to capture a frame
     console.log("Attempting to capture frame from video element.");
@@ -345,10 +350,28 @@ async function testProcessFrame() {
             console.log('Found', data.results.length, 'emotion results');
             drawEmotionBoxes(data.results);
             window.currentEmotionResults = data.results;
+            
+            // Update popup with most confident emotion from real video analysis
+            const mostConfidentEmotion = data.results.reduce((prev, current) => {
+                return (prev.confidence > current.confidence) ? prev : current;
+            });
+            
+            handleEmoji({
+                emotion: mostConfidentEmotion.emotion,
+                confidence: mostConfidentEmotion.confidence,
+                face_id: mostConfidentEmotion.face_id || 0
+            });
         } else {
             console.log('No emotion results found, clearing canvas');
             drawEmotionBoxes([]);
             window.currentEmotionResults = [];
+            
+            // Set to neutral when no emotions detected
+            handleEmoji({
+                emotion: 'neutral',
+                confidence: 1.0,
+                face_id: 0
+            });
         }
     } catch (error) {
         console.error('Error in testProcessFrame:', error);
@@ -363,10 +386,13 @@ function isPointInRect(x, y, rect) {
 }
 
 // Function to handle emotion box clicks
-function handleEmotionBoxClick(emotionData) {
+function handleEmotionBoxClick(emotionData){
     console.log('Emotion box clicked:', emotionData);
     
-    // Create a detailed popup or alert with emotion information
+    // Send emotion data to popup for display
+    handleEmoji(emotionData);
+    
+    // Create a detailed popup or alert with emotion information (optional - can remove if you prefer)
     const details = `
 Face ID: ${emotionData.face_id}
 Emotion: ${emotionData.emotion}
@@ -382,6 +408,66 @@ Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
     // logEmotionClick(emotionData);
 }
 
+// Function to handle emoji display in popup based on emotion data
+function handleEmoji(emotionData) {
+    console.log('handleEmoji called with:', emotionData);
+    
+    // Send emotion data to popup (if it's open)
+    try {
+        chrome.runtime.sendMessage({
+            action: 'updateEmotion',
+            emotion: emotionData.emotion,
+            confidence: emotionData.confidence,
+            face_id: emotionData.face_id || 0
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.log('Popup not open or error:', chrome.runtime.lastError.message);
+            } else {
+                console.log('Emotion data sent to popup successfully');
+            }
+        });
+    } catch (error) {
+        console.log('Error sending message to popup:', error);
+    }
+}
+
+// Function to process getEmotionData output and update popup with most confident emotion
+async function updateEmotionFromAPI() {
+    try {
+        const emotionResults = await getEmotionData();
+        console.log('getEmotionData results:', emotionResults);
+        
+        if (emotionResults && emotionResults.length > 0) {
+            // Find the emotion with highest confidence
+            const mostConfidentEmotion = emotionResults.reduce((prev, current) => {
+                return (prev.confidence > current.confidence) ? prev : current;
+            });
+            
+            console.log('Most confident emotion:', mostConfidentEmotion);
+            
+            // Update popup with the most confident emotion
+            handleEmoji({
+                emotion: mostConfidentEmotion.emotion,
+                confidence: mostConfidentEmotion.confidence,
+                face_id: mostConfidentEmotion.face_id || 0
+            });
+            
+            return mostConfidentEmotion;
+        } else {
+            console.log('No emotions detected, using neutral');
+            // Default to neutral if no emotions detected
+            handleEmoji({
+                emotion: 'neutral',
+                confidence: 1.0,
+                face_id: 0
+            });
+            return null;
+        }
+    } catch (error) {
+        console.error('Error in updateEmotionFromAPI:', error);
+        return null;
+    }
+}
 
 // Add click event listener to canvas
 addEventListener('click', function(event) {
@@ -453,6 +539,12 @@ document.addEventListener('keydown', function(event) {
         testProcessFrame();
     }
     
+    // Press 'E' key to test getEmotionData API and update popup
+    if (event.key === 'e' || event.key === 'E') {
+        console.log('Testing getEmotionData API and updating popup');
+        updateEmotionFromAPI();
+    }
+    
     // Press 'R' key to draw a test rectangle
     if (event.key === 'r' || event.key === 'R') {
         console.log('Drawing test rectangle');
@@ -477,4 +569,4 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 400);
+setInterval(testProcessFrame, 500);

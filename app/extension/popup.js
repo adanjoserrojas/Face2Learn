@@ -9,6 +9,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentDataUrl = null;
 
+  // Emotion mapping for dynamic image display
+  const emotionImageMap = {
+    'sad': 'Images/1F62D_color.png',
+    'surprised': 'Images/1F62F_color.png', 
+    'angry': 'Images/1F92C_color.png',
+    'disgusted': 'Images/1F92E_color.png',
+    'happy': 'Images/1F601_color.png',
+    'neutral': 'Images/1F610_color.png',
+    'fearful': 'Images/1F628_color.png'
+  };
+
+  // Get current emotion display elements
+  const currentEmotionImg = document.querySelector('.current-emotion-img');
+  const currentEmotionText = document.querySelector('.current-emotion-text');
+
   // Set initial state - button should be visible when toggle is OFF (unchecked)
   if (!screenshotToggle.checked) {
     screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
@@ -64,6 +79,34 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Screenshot error:', error);
       showNoImage('Screenshot failed');
+    }
+  });
+
+  // Function to update emotion display
+  function updateEmotionDisplay(emotion, confidence) {
+    console.log('Updating emotion display:', emotion, confidence);
+    
+    // Get emotion image path
+    const imagePath = emotionImageMap[emotion.toLowerCase()];
+    
+    if (imagePath && currentEmotionImg) {
+      currentEmotionImg.src = imagePath;
+      currentEmotionImg.alt = `${emotion} Face`;
+      console.log('Updated image src to:', imagePath);
+    }
+    
+    if (currentEmotionText) {
+      currentEmotionText.textContent = `Current Emotion: ${emotion} (${Math.round(confidence * 100)}%)`;
+    }
+  }
+
+  // Listen for emotion updates from content script
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('Popup received message:', message);
+    
+    if (message.action === 'updateEmotion') {
+      updateEmotionDisplay(message.emotion, message.confidence);
+      sendResponse({ success: true });
     }
   });
 

@@ -4,16 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Face2Learn</title>
-    <!-- Google Fonts for Pediatric & Autism-Friendly Design -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&family=Fredoka+One&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS Local -->
+    <link href="https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single+Ink:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
   </head>
-  <body class="container bg-red-orange text-purple-primary p-4 w-96 min-h-80 border-0">
+  <body class="bg-red-orange text-purple-primary p-4 w-96 min-h-80 border-0">
     <div class="grid grid-cols-1 gap-4">
-      <h1 class="text-3xl text-center text-purple-primary font-nunito animate-bounce-smooth">Face2Learn</h1>
+      <!-- Full width header -->
+      <header class="text-4xl text-center text-purple-primary font-nunito animate-bounce-smooth" 
+          style="font-family: 'Bitcount Prop Single Ink', system-ui; font-weight: 400; font-variation-settings: 'slnt' 0, 'CRSV' 0.5;">Face2Learn</header>
+      
+      <!-- Current Emotion section below -->
+      <div class="flex flex-col items-center justify-center"> 
+        <span class="text-sm font-nunito text-purple-primary current-emotion-text">Current Emotion</span>
+        <img class="current-emotion-img" src="Images/1F610_color.png" width="64" height="64" alt="Neutral Face">
+      </div>
+      
       <p class="italic text-xs text-gray-600 text-center font-nunito">Understand others emotions can sometimes be challenging</p>
       
       <!-- Screenshot Screen -->
@@ -22,19 +29,32 @@
       </div>
 
       <!-- Toggle Bar Section Below Screenshot -->
-      <div class="flex items-center justify-center space-x-4">
+      <div class="flex items-center justify-center space-x-2">
         <!-- Toggle Bar -->
-        <div class="flex items-center space-x-3">
-          <span class="text-sm text-gray-600 font-nunito">Auto Screenshot</span>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="screenshot-toggle" class="sr-only peer">
-            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-primary"></div>
-          </label>
+        <div class="grid grid-cols-2 grid-rows-2 gap-2 items-center justify-items-center">
+          <div class="flex justify-center">
+            <span class="text-xs text-gray-600 font-nunito">Auto Play</span>
+          </div>
+          <div class="flex justify-center">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="screenshot-toggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-purple-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-primary"></div>
+            </label>
+          </div>
+          <div class="flex justify-center">
+            <span class="text-xs text-gray-600 font-nunito">Live Face Analysis</span>
+          </div>
+          <div class="flex justify-center">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="screenshot-toggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-purple-light rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-primary"></div>
+            </label>
+          </div>
         </div>
         
         <!-- Screenshot Button next to toggle with smooth transition -->
-        <div id="screenshot-button-container" class="opacity-0 transform scale-95 transition-all duration-300 ease-in">
-          <button id="screenshot-btn" class="px-4 py-2 bg-yellow-accent hover:bg-orange text-purple-primary rounded-lg font-medium font-nunito transition-colors duration-300">
+        <div id="screenshot-button-container" class="opacity-0 transform scale-95 transition-all duration-300 ease-in-back-out">
+          <button id="screenshot-btn" class="px-4 py-2 bg-yellow-accent hover:bg-orange text-purple-primary rounded-lg font-medium font-nunito transition-colors duration-300 ease-in-back-out">
             📸 Screenshot
           </button>
         </div>

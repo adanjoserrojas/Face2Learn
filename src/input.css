@@ -19,6 +19,9 @@
   --font-nunito: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-fredoka: "Fredoka One", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-quicksand: "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  /* Custom Easing Functions */
+  --ease-in-back-out: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 /* Custom Animations */
@@ -35,4 +38,9 @@
 
 .animate-bounce-smooth {
   animation: bounce-smooth 1s infinite;
+}
+
+/* InBackOut Transition Utility */
+.ease-in-back-out {
+  transition-timing-function: var(--ease-in-back-out);
 }
