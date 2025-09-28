@@ -15,6 +15,9 @@ import os
 import time
 import google.generativeai as genai
 from config import GEMINI_API_KEY, CONFIDENCE_THRESHOLD, MAX_FACES
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+
 
 # Disable MTCNN for now to focus on DNN
 USE_MTCNN = False
@@ -64,6 +67,56 @@ print("DNN temporarily disabled - using optimized Haar cascade detection")
 # Initialize Flask app with CORS enabled for Chrome extension
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Chrome extension communication
+
+#Selector
+MODEL_NAME = "j-hartmann/emotion-english-distilroberta-base"
+
+# Load model + tokenizer once
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+
+# If GPU is available, use it; else CPU
+device = 0 if torch.cuda.is_available() else -1
+
+classifier = pipeline(
+    "text-classification",
+    model=model,
+    tokenizer=tokenizer,
+    return_all_scores=True,
+    device=device
+)
+
+@app.route("/", methods=["POST"])
+def analyze():
+    try:
+        data = request.get_json()
+        text = data.get("text", "").strip()
+        if not text:
+            return jsonify({"error": "No text provided"}), 400
+
+        results = classifier(text)[0]  
+        # results is a list of dicts: e.g.
+        # [
+        #   {"label": "anger", "score": 0.01},
+        #   {"label": "joy",   "score": 0.80},
+        #   ...
+        # ]
+
+        # Choose top-1
+        top = max(results, key=lambda x: x["score"])
+
+        return jsonify({
+            "top_label": top["label"],
+            "top_score": float(top["score"]),
+            "all_scores": { r["label"]: float(r["score"]) for r in results }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
 
 # Configure Gemini AI
 genai.configure(api_key=GEMINI_API_KEY)
