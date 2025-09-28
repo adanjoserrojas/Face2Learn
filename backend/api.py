@@ -12,29 +12,25 @@ from PIL import Image
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
 import os
+import time
 import google.generativeai as genai
 from config import GEMINI_API_KEY, CONFIDENCE_THRESHOLD, MAX_FACES
 
-# Import MTCNN for better face detection
-try:
-    from mtcnn import MTCNN
-    USE_MTCNN = True
-    print("MTCNN available - using neural network face detection")
-except ImportError:
-    USE_MTCNN = False
-    print("MTCNN not available - using Haar cascade face detection")
+# Disable MTCNN for now to focus on DNN
+USE_MTCNN = False
+print("MTCNN disabled - focusing on OpenCV DNN face detection")
 
 # Check for OpenCV DNN face detection model files
 import urllib.request
 DNN_MODEL_FILES = {
-    'prototxt': 'opencv_face_detector.pbtxt',
-    'caffemodel': 'opencv_face_detector.caffemodel'
+    'pbtxt': 'opencv_face_detector.pbtxt',
+    'pb': 'opencv_face_detector_fp16.pb'
 }
 
-# URLs for downloading DNN models if not present
+# URLs for downloading DNN models if not present  
 DNN_MODEL_URLS = {
-    'prototxt': 'https://raw.githubusercontent.com/opencv/opencv_extra/master/testdata/dnn/opencv_face_detector.pbtxt',
-    'caffemodel': 'https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/opencv_face_detector.caffemodel'
+    'pbtxt': 'https://raw.githubusercontent.com/opencv/opencv/4.x/samples/dnn/face_detector/opencv_face_detector.pbtxt',
+    'pb': 'https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20180205_fp16/opencv_face_detector_fp16.pb'
 }
 
 # Check if DNN models are available
@@ -43,8 +39,14 @@ for file_type, filename in DNN_MODEL_FILES.items():
     if not os.path.exists(filename):
         print(f"DNN model file {filename} not found. Downloading...")
         try:
+            print(f"Downloading from: {DNN_MODEL_URLS[file_type]}")
             urllib.request.urlretrieve(DNN_MODEL_URLS[file_type], filename)
-            print(f"Downloaded {filename}")
+            print(f"Successfully downloaded {filename}")
+            # Verify file size
+            file_size = os.path.getsize(filename)
+            print(f"Downloaded file size: {file_size} bytes")
+            if file_size < 1000:  # Very small file indicates download failure
+                print(f"Warning: {filename} seems too small, might be corrupted")
         except Exception as e:
             print(f"Failed to download {filename}: {e}")
             USE_DNN = False
@@ -53,7 +55,11 @@ for file_type, filename in DNN_MODEL_FILES.items():
 if USE_DNN:
     print("OpenCV DNN face detection available")
 else:
-    print("OpenCV DNN face detection not available - missing model files")
+    print("OpenCV DNN face detection not available - using Haar cascade")
+
+# For now, let's disable DNN due to compatibility issues and use optimized Haar cascade
+USE_DNN = False
+print("DNN temporarily disabled - using optimized Haar cascade detection")
 
 # Initialize Flask app with CORS enabled for Chrome extension
 app = Flask(__name__)
@@ -106,125 +112,37 @@ def create_model():
 # Initialize model and face detection cascade
 model = create_model()
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')  # Haar cascade for face detection
+
+# Validate that the cascade classifier is properly loaded
+if face_cascade.empty():
+    print("ERROR: Failed to load Haar cascade classifier!")
+    print("Please ensure 'haarcascade_frontalface_default.xml' exists in the backend directory")
+    # Try alternative cascade file
+    face_cascade = cv2.CascadeClassifier('haarcascade_profileface.xml')
+    if face_cascade.empty():
+        print("ERROR: Alternative cascade also failed to load!")
+        print("Face detection will be severely limited")
+    else:
+        print("Loaded alternative profile face cascade")
+else:
+    print("Haar cascade classifier loaded successfully")
+
 emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
-# Initialize MTCNN detector if available
-if USE_MTCNN:
-    mtcnn_detector = MTCNN()
-    print("MTCNN detector initialized successfully")
-else:
-    mtcnn_detector = None
+# MTCNN disabled - focusing on DNN
+mtcnn_detector = None
 
-# Initialize OpenCV DNN detector if available
-if USE_DNN:
-    try:
-        dnn_net = cv2.dnn.readNetFromTensorflow(DNN_MODEL_FILES['caffemodel'], DNN_MODEL_FILES['prototxt'])
-        print("OpenCV DNN detector initialized successfully")
-    except Exception as e:
-        print(f"Failed to initialize DNN detector: {e}")
-        USE_DNN = False
-        dnn_net = None
-else:
-    dnn_net = None
 
 # OpenCV DNN face detection function
-def detect_faces_dnn(image):
-    """
-    Detect faces using OpenCV DNN face detection
-    
-    Args:
-        image: BGR image (numpy array)
-        
-    Returns:
-        list: List of (x, y, w, h) face rectangles with high confidence
-    """
-    try:
-        h, w = image.shape[:2]
-        
-        # Create blob from image
-        # Input size for the DNN model is 300x300
-        blob = cv2.dnn.blobFromImage(image, 1.0, (300, 300), [104, 117, 123])
-        
-        # Set input to the network
-        dnn_net.setInput(blob)
-        
-        # Run forward pass to get detections
-        detections = dnn_net.forward()
-        
-        face_boxes = []
-        
-        # Process detections
-        for i in range(detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
-            
-            # Filter out weak detections
-            if confidence > 0.7:  # Confidence threshold
-                # Get bounding box coordinates
-                x1 = int(detections[0, 0, i, 3] * w)
-                y1 = int(detections[0, 0, i, 4] * h)
-                x2 = int(detections[0, 0, i, 5] * w)
-                y2 = int(detections[0, 0, i, 6] * h)
-                
-                # Convert to (x, y, width, height) format
-                x = max(0, x1)
-                y = max(0, y1)
-                width = min(x2 - x1, w - x)
-                height = min(y2 - y1, h - y)
-                
-                if width > 0 and height > 0:
-                    face_boxes.append((x, y, width, height))
-                    print(f"DNN face detected with confidence: {confidence:.2f} at ({x}, {y}, {width}, {height})")
-        
-        print(f"OpenCV DNN detected {len(face_boxes)} faces (confidence > 0.7)")
-        return face_boxes
-        
-    except Exception as e:
-        print(f"DNN detection error: {e}")
-        return []
+
 
 # MTCNN face detection function
-def detect_faces_mtcnn(rgb_image):
-    """
-    Detect faces using MTCNN neural network
-    
-    Args:
-        rgb_image: RGB image (numpy array)
-        
-    Returns:
-        list: List of (x, y, w, h) face rectangles with high confidence
-    """
-    try:
-        faces = mtcnn_detector.detect_faces(rgb_image)
-        face_boxes = []
-        
-        for face in faces:
-            x, y, w, h = face['box']
-            confidence = face['confidence']
-            
-            # Lower confidence threshold for better detection
-            print(f"MTCNN face detected with confidence: {confidence}")
-            if confidence > 0.7:  # Lowered from 0.8 to 0.7
-                # Ensure coordinates are positive and within image bounds
-                x = max(0, x)
-                y = max(0, y)
-                w = min(w, rgb_image.shape[1] - x)
-                h = min(h, rgb_image.shape[0] - y)
-                
-                if w > 0 and h > 0:  # Valid face box
-                    face_boxes.append((x, y, w, h))
-                    print(f"Added face: ({x}, {y}, {w}, {h})")
-        
-        print(f"MTCNN detected {len(face_boxes)} faces (confidence > 0.7)")
-        return face_boxes
-        
-    except Exception as e:
-        print(f"MTCNN detection error: {e}")
-        return []
 
-# Haar cascade face detection function (optimized)
+
+# Enhanced Haar cascade face detection function
 def detect_faces_optimized(gray_image):
     """
-    Optimized Haar cascade face detection on grayscale image
+    Enhanced Haar cascade face detection with segmentation fault prevention
     
     Args:
         gray_image: Grayscale image for face detection
@@ -233,18 +151,145 @@ def detect_faces_optimized(gray_image):
         list: List of (x, y, w, h) face rectangles
     """
     
-    # Haar cascade detection with optimized parameters
-    faces_frontal = face_cascade.detectMultiScale(
-        gray_image,
-        scaleFactor=1.1,
-        minNeighbors=8,
-        minSize=(30, 30),
-        maxSize=(300, 300),
-        flags=cv2.CASCADE_SCALE_IMAGE
-    )
+    # Validate input image thoroughly
+    if gray_image is None:
+        print("Input image is None")
+        return []
     
-    # Convert to list and return
-    return list(faces_frontal)
+    if not isinstance(gray_image, np.ndarray):
+        print(f"Input is not numpy array, got: {type(gray_image)}")
+        return []
+    
+    if gray_image.size == 0:
+        print("Input image has zero size")
+        return []
+    
+    if len(gray_image.shape) != 2:
+        print(f"Input image must be grayscale (2D), got shape: {gray_image.shape}")
+        return []
+    
+    height, width = gray_image.shape
+    if height <= 0 or width <= 0:
+        print(f"Invalid image dimensions: {width}x{height}")
+        return []
+    
+    # Check minimum image size
+    if width < 50 or height < 50:
+        print(f"Image too small for face detection: {width}x{height}")
+        return []
+    
+    # Check if cascade classifier is loaded
+    if face_cascade.empty():
+        print("Haar cascade classifier not loaded, cannot detect faces")
+        return []
+    
+    print(f"Processing image: {width}x{height}")
+    
+    # Ensure image data is valid and contiguous
+    try:
+        # Check if image data is contiguous in memory
+        if not gray_image.flags.c_contiguous:
+            print("Converting image to contiguous array")
+            gray_image = np.ascontiguousarray(gray_image, dtype=np.uint8)
+        
+        # Ensure correct data type
+        if gray_image.dtype != np.uint8:
+            print(f"Converting image from {gray_image.dtype} to uint8")
+            # Normalize to 0-255 range if needed
+            if gray_image.max() <= 1.0:
+                gray_image = (gray_image * 255).astype(np.uint8)
+            else:
+                gray_image = gray_image.astype(np.uint8)
+        
+        # Validate final image
+        if gray_image is None or gray_image.size == 0:
+            print("Image became invalid after processing")
+            return []
+            
+    except Exception as e:
+        print(f"Error preparing image data: {e}")
+        return []
+    
+    # Try multiple detection approaches quickly
+    all_faces = []
+    
+    # Approach 1: Standard detection
+    try:
+        print("Trying standard detection")
+        faces1 = face_cascade.detectMultiScale(
+            gray_image,
+            scaleFactor=1.1,
+            minNeighbors=3,
+            minSize=(50, 50),
+            flags=cv2.CASCADE_SCALE_IMAGE
+        )
+        if len(faces1) > 0:
+            print(f"Standard detection found {len(faces1)} faces")
+            all_faces.extend(faces1)
+    except Exception as e:
+        print(f"Standard detection failed: {e}")
+    
+    # Approach 2: More sensitive detection if no faces found
+    if len(all_faces) == 0:
+        try:
+            print("Trying sensitive detection")
+            faces2 = face_cascade.detectMultiScale(
+                gray_image,
+                scaleFactor=1.1,
+                minNeighbors=2,
+                minSize=(40, 40),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
+            if len(faces2) > 0:
+                print(f"Sensitive detection found {len(faces2)} faces")
+                all_faces.extend(faces2)
+        except Exception as e:
+            print(f"Sensitive detection failed: {e}")
+    
+    # Approach 3: Very sensitive detection as last resort
+    if len(all_faces) == 0:
+        try:
+            print("Trying very sensitive detection")
+            faces3 = face_cascade.detectMultiScale(
+                gray_image,
+                scaleFactor=1.05,
+                minNeighbors=1,
+                minSize=(30, 30),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
+            if len(faces3) > 0:
+                print(f"Very sensitive detection found {len(faces3)} faces")
+                all_faces.extend(faces3)
+        except Exception as e:
+            print(f"Very sensitive detection failed: {e}")
+    
+    if len(all_faces) > 0:
+        return list(all_faces)
+    else:
+        print("All detection approaches failed to find faces")
+        return []
+    
+    # Remove duplicate detections if any
+    if len(all_faces) > 1:
+        unique_faces = []
+        for face in all_faces:
+            x, y, w, h = face
+            is_duplicate = False
+            for unique_face in unique_faces:
+                ux, uy, uw, uh = unique_face
+                # Check if faces overlap significantly
+                overlap_x = max(0, min(x + w, ux + uw) - max(x, ux))
+                overlap_y = max(0, min(y + h, uy + uh) - max(y, uy))
+                overlap_area = overlap_x * overlap_y
+                face_area = w * h
+                if overlap_area > 0.5 * face_area:  # 30% overlap threshold - reduced for better detection
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                unique_faces.append(face)
+        all_faces = unique_faces
+    
+    return list(all_faces)
 
 def get_fallback_educational_content(emotion, confidence):
     """
@@ -438,47 +483,40 @@ def process_image(image_data):
         image = Image.open(io.BytesIO(image_bytes))
         frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
+        # Validate frame dimensions
+        if frame is None or frame.size == 0:
+            print("Invalid frame data")
+            return []
+            
+        height, width = frame.shape[:2]
+        if height <= 0 or width <= 0:
+            print(f"Invalid frame dimensions: {width}x{height}")
+            return []
+        
+        print(f"Processing frame: {width}x{height}")
+        
         # Convert to grayscale for face detection (Haar cascade works better on grayscale)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
+        # Validate grayscale image
+        if gray is None or gray.size == 0:
+            print("Failed to convert to grayscale")
+            return []
+        
         # Enhance image preprocessing for better face detection
         # Apply histogram equalization to improve contrast
-        gray = cv2.equalizeHist(gray)
+        try:
+            gray = cv2.equalizeHist(gray)
+        except Exception as e:
+            print(f"Histogram equalization failed: {e}")
+            # Continue with original grayscale image
         
         # Use different detection methods based on availability (in order of preference)
         faces = []
         detection_method = ""
         
-        # Try MTCNN first if available (best accuracy)
-        if USE_MTCNN and mtcnn_detector is not None:
-            try:
-                # Convert BGR to RGB for MTCNN
-                rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                faces = detect_faces_mtcnn(rgb_image)
-                detection_method = "MTCNN neural network"
-                
-                if len(faces) == 0:
-                    print("MTCNN found no faces, trying OpenCV DNN")
-                    if USE_DNN and dnn_net is not None:
-                        faces = detect_faces_dnn(frame)
-                        detection_method = "OpenCV DNN (MTCNN fallback)"
-                
-            except Exception as e:
-                print(f"MTCNN failed: {e}, trying OpenCV DNN")
-                if USE_DNN and dnn_net is not None:
-                    try:
-                        faces = detect_faces_dnn(frame)
-                        detection_method = "OpenCV DNN (MTCNN error fallback)"
-                    except Exception as dnn_e:
-                        print(f"DNN also failed: {dnn_e}, falling back to Haar cascade")
-                        faces = detect_faces_optimized(gray)
-                        detection_method = "Haar cascade (both neural networks failed)"
-                else:
-                    faces = detect_faces_optimized(gray)
-                    detection_method = "Haar cascade (MTCNN failed, no DNN)"
-        
-        # If MTCNN is not available, try OpenCV DNN
-        elif USE_DNN and dnn_net is not None:
+        # Try OpenCV DNN first if available
+        if USE_DNN and dnn_net is not None:
             try:
                 faces = detect_faces_dnn(frame)
                 detection_method = "OpenCV DNN"
@@ -495,8 +533,13 @@ def process_image(image_data):
         
         # Final fallback to Haar cascade
         else:
-            faces = detect_faces_optimized(gray)
-            detection_method = "Haar cascade"
+            try:
+                faces = detect_faces_optimized(gray)
+                detection_method = "Haar cascade"
+            except Exception as e:
+                print(f"All face detection methods failed: {e}")
+                faces = []
+                detection_method = "No detection (all methods failed)"
 
         
         print(f"Detected {len(faces)} faces using {detection_method}")
@@ -505,7 +548,7 @@ def process_image(image_data):
             print("No faces detected - trying fallback with lower thresholds")
             
             # Try MTCNN with lower threshold
-            if USE_MTCNN and mtcnn_detector is not None:
+            if USE_MTCNN and mtcnn_detector is None:
                 try:
                     rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     fallback_faces = mtcnn_detector.detect_faces(rgb_image)
@@ -589,7 +632,11 @@ def process_image(image_data):
                 'rectangle_coords': {
                     'top_left': {'x': int(x), 'y': int(y - 50)},
                     'bottom_right': {'x': int(x + w), 'y': int(y + h + 10)}
-                }
+                },
+                # Border display timing
+                'timestamp': __import__('time').time(),  # Current timestamp
+                'display_duration': 3000,  # Show border for 3 seconds (3000ms)
+                'fade_duration': 500  # Fade out animation duration (500ms)
             }
             results.append(result)
         
@@ -919,6 +966,30 @@ if __name__ == '__main__':
     Starts the emotion detection API server on all interfaces (0.0.0.0)
     on port 5001 with debug mode enabled for development.
     """
+    import signal
+    import sys
+    import atexit
+    
+    def cleanup_handler(signum=None, frame=None):
+        """Clean up resources on shutdown"""
+        print("Cleaning up resources...")
+        try:
+            # Clean up OpenCV resources
+            cv2.destroyAllWindows()
+            # Force garbage collection
+            import gc
+            gc.collect()
+        except Exception as e:
+            print(f"Cleanup error: {e}")
+        print("Cleanup completed")
+        if signum is not None:
+            sys.exit(0)
+    
+    # Register cleanup handlers
+    signal.signal(signal.SIGINT, cleanup_handler)
+    signal.signal(signal.SIGTERM, cleanup_handler)
+    atexit.register(cleanup_handler)
+    
     print("Starting Emotion Detection API...")
     print("Model loaded successfully!")
     print("API endpoints available:")
@@ -928,6 +999,14 @@ if __name__ == '__main__':
     print("  - GET  /test_emotions             - Test endpoint with simulated data")
     print("  - GET  /health                    - Health check endpoint")
     print("Server starting on http://0.0.0.0:5001")
+    print("Press Ctrl+C to stop the server")
     
-    # Start Flask development server
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    try:
+        # Start Flask development server with reduced multiprocessing to avoid semaphore leaks
+        app.run(host='0.0.0.0', port=5001, debug=False, threaded=True, use_reloader=False)
+    except KeyboardInterrupt:
+        print("Server stopped by user")
+        cleanup_handler()
+    except Exception as e:
+        print(f"Server error: {e}")
+        cleanup_handler()
