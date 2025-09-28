@@ -347,20 +347,21 @@ def get_fallback_educational_content(emotion, confidence):
     Generate fallback educational content when Gemini API is not available.
     """
     fallback_content = {
-        "Happy": f"You seem to be feeling positive (confidence: {confidence:.1%}). Your expression shows energy and engagement, which is an excellent state for learning. Use this momentum to explore challenging material or share your knowledge with others. Take note of your study environment too—if it feels comfortable and supportive, lean into that while your motivation is high.",
-        
-        "Sad": f"You may be feeling a bit down (confidence: {confidence:.1%}). This often happens when learning feels overwhelming or progress feels slow. Be kind to yourself—take a short break, revisit simpler concepts, or talk through the material with someone supportive. Small adjustments to your environment, like better lighting or a change of scenery, can also lift your mood.",
-        
-        "Angry": f"You look frustrated (confidence: {confidence:.1%}). Frustration is natural when learning is difficult. Try breaking the problem into smaller steps, switching topics briefly, or pausing for a reset. Remember, persistence matters more than perfection. Also check your setup—sometimes posture, noise, or distractions add to stress more than the material itself.",
-        
-        "Fearful": f"You might be feeling unsure or nervous (confidence: {confidence:.1%}). This suggests some worry about mistakes or not understanding fully. Focus on the basics, ask clear questions, and remember that mistakes are essential steps in learning. Make sure your environment feels safe and distraction-free so you can approach new ideas with confidence.",
-        
-        "Surprised": f"You look surprised (confidence: {confidence:.1%}). This usually means you’ve encountered something new or unexpected, which is a great spark for curiosity. Take a moment to explore the idea further, connect it to what you already know, or share your discovery. Capture this energy in notes or discussions while your attention is sharp.",
-        
-        "Disgusted": f"You seem uncomfortable with the material (confidence: {confidence:.1%}). This might mean the approach doesn’t suit your style or the content feels off-putting. Try switching resources, rephrasing the material, or stepping away briefly. Learning should feel engaging—sometimes adjusting your environment or study method makes a big difference.",
-        
-        "Neutral": f"You appear calm and attentive (confidence: {confidence:.1%}). This is a strong state for learning since your focus is steady and clear. Take advantage by practicing note-taking, summarizing key points, or applying ideas actively. Keep your environment consistent and distraction-free so you can maintain this balance."
+    "Happy": f"The person in the scene is smiling and appears relaxed (confidence: {confidence:.1%}). Their posture and expression suggest comfort and engagement with what’s happening around them. This typically indicates that they are open to interaction and in a positive mindset.",
+    
+    "Sad": f"The person looks downcast, with a lowered gaze or subdued expression (confidence: {confidence:.1%}). Their body language suggests low energy or discouragement, as if something is weighing on them. This often signals a need for patience, understanding, or gentle support from others.",
+    
+    "Angry": f"The individual’s expression is tense, with possible frowning or narrowed eyes (confidence: {confidence:.1%}). Their posture may appear rigid, showing signs of frustration. This suggests they are struggling with something in the moment and may need space to cool down before re-engaging.",
+    
+    "Fearful": f"The person seems uneasy, with wide eyes or a cautious posture (confidence: {confidence:.1%}). Their body language implies apprehension, as if they’re uncertain about what will happen next. This may mean they need reassurance or a calm environment to feel more comfortable.",
+    
+    "Surprised": f"The individual shows raised eyebrows or widened eyes, with an alert posture (confidence: {confidence:.1%}). Their expression reflects sudden interest or discovery. This often means they’ve just noticed something unexpected and may be curious or momentarily startled.",
+    
+    "Disgusted": f"The person’s face shows signs of discomfort, such as a scrunched nose or tightened mouth (confidence: {confidence:.1%}). Their posture may lean back slightly, suggesting rejection of what they’re seeing. This usually signals that they find something unpleasant or off-putting in their environment.",
+    
+    "Neutral": f"The person appears calm and composed, with a steady posture and neutral facial expression (confidence: {confidence:.1%}). Their demeanor suggests attentiveness without strong emotion. This can indicate focus or simply being at ease in the situation."
     }
+
 
     
     return fallback_content.get(emotion, f"You're showing a {emotion.lower()} expression (confidence: {confidence:.1%}). This is a normal part of the learning process. Take a moment to reflect on how you're feeling and adjust your learning approach accordingly. Consider your current environment and whether it's supporting your learning goals.")
