@@ -1,6 +1,8 @@
-let VISUALON = true;
-
 let rectanglesVisible = true;
+
+// Toggle states from popup
+let autoplayEnabled = false; // When true: boxes clickable, screenshot hidden
+let liveAnalysisEnabled = false; // When true: boxes always show, when false: only on hover
 
 console.log("Content Script Initialized");
 
@@ -31,10 +33,16 @@ return dataURL;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-if (msg.action === "capture") {
-    console.log("Received capture request from extension.");
-    sendResponse({ image: captureFrame() });
-}
+    if (msg.action === "capture") {
+        console.log("Received capture request from extension.");
+        sendResponse({ image: captureFrame() });
+    } else if (msg.action === "updateToggleStates") {
+        console.log("Received toggle states update:", msg);
+        autoplayEnabled = msg.autoplayEnabled;
+        liveAnalysisEnabled = msg.liveAnalysisEnabled;
+        console.log(`Toggle states updated - Autoplay: ${autoplayEnabled}, Live Analysis: ${liveAnalysisEnabled}`);
+        sendResponse({ success: true });
+    }
 });console.log("face2learn content script loaded");
 
 // API Configuration
@@ -199,10 +207,14 @@ function drawEmotionBoxes(results) {
         if (confidence > 0.9) boxColor = "green";
         else if (confidence > 0.8) boxColor = "orange";
         
-        // Draw bounding box only when hovered (use client coords for hover check)
+        // Draw bounding box based on live analysis toggle and hover state
         const boxRect = { x: scaledX, y: scaledY, width: scaledWidth, height: scaledHeight };
         const hovered = currentMouseClient.x !== null && isPointInRect(currentMouseClient.x, currentMouseClient.y, boxRect);
-        if (hovered || VISUALON) {
+        
+        // Show boxes if: live analysis is enabled OR if hovered (when live analysis is disabled)
+        const shouldShowBox = liveAnalysisEnabled || hovered;
+        
+        if (shouldShowBox) {
             ctx.strokeStyle = boxColor;
             ctx.lineWidth = 2;
             ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -575,6 +587,12 @@ async function updateEmotionFromAPI() {
 
 // Add click event listener to canvas
 addEventListener('click', function(event) {
+    // Only handle clicks if autoplay is enabled
+    if (!autoplayEnabled) {
+        console.log('Autoplay disabled - ignoring box clicks');
+        return;
+    }
+
     // Use client coordinates for click detection (box coords are in client space)
     const clickClientX = event.clientX;
     const clickClientY = event.clientY;
@@ -620,17 +638,19 @@ addEventListener('mousemove', function(event) {
         }
     }
 
-    // If hovering a box, enable pointer events on the canvas so clicks are caught by it
+    // If hovering a box and autoplay is enabled, enable pointer events on the canvas so clicks are caught by it
     // Otherwise disable pointer events so clicks pass through to the underlying page.
-    if (overBox) {
+    if (overBox && autoplayEnabled) {
         canvas.style.pointerEvents = "auto";
         canvas.style.cursor = "pointer";
     } else {
         canvas.style.pointerEvents = "none";
         canvas.style.cursor = "default";
         // clear client mouse pos so draw logic knows there's no hover
-        currentMouseClient.x = null;
-        currentMouseClient.y = null;
+        if (!overBox) {
+            currentMouseClient.x = null;
+            currentMouseClient.y = null;
+        }
     }
 });
 

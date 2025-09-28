@@ -3,11 +3,87 @@ document.addEventListener('DOMContentLoaded', () => {
   const placeholder = document.getElementById('thumb-placeholder');
   
   // Toggle functionality
-  const screenshotToggle = document.getElementById('screenshot-toggle');
+  const autoplayToggle = document.getElementById('autoplay-toggle');
+  const liveAnalysisToggle = document.getElementById('live-analysis-toggle');
   const screenshotButtonContainer = document.getElementById('screenshot-button-container');
   const screenshotBtn = document.getElementById('screenshot-btn');
 
   let currentDataUrl = null;
+
+  // State persistence functions
+  function saveToggleStates() {
+    const states = {
+      autoplayEnabled: autoplayToggle.checked,
+      liveAnalysisEnabled: liveAnalysisToggle.checked
+    };
+    
+    chrome.storage.local.set({ toggleStates: states }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error saving toggle states:', chrome.runtime.lastError);
+      } else {
+        console.log('Toggle states saved:', states);
+      }
+    });
+  }
+
+  function loadToggleStates() {
+    chrome.storage.local.get(['toggleStates'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error loading toggle states:', chrome.runtime.lastError);
+        updateUIForToggleStates();
+        return;
+      }
+      
+      if (result.toggleStates) {
+        console.log('Loading saved toggle states:', result.toggleStates);
+        
+        // Set toggle states with fallback to defaults
+        autoplayToggle.checked = result.toggleStates.autoplayEnabled || false;
+        liveAnalysisToggle.checked = result.toggleStates.liveAnalysisEnabled || false;
+        
+        // Update UI based on loaded states
+        updateUIForToggleStates();
+        
+        // Send states to content script with a small delay to ensure content script is ready
+        setTimeout(sendToggleStates, 100);
+      } else {
+        console.log('No saved toggle states found, using defaults');
+        // Set default states (both false) and update UI
+        autoplayToggle.checked = false;
+        liveAnalysisToggle.checked = false;
+        updateUIForToggleStates();
+        setTimeout(sendToggleStates, 100);
+      }
+    });
+  }
+
+  function updateUIForToggleStates() {
+    console.log('Updating UI for toggle states - Autoplay:', autoplayToggle.checked, 'Live Analysis:', liveAnalysisToggle.checked);
+    
+    if (autoplayToggle.checked) {
+      // Autoplay is ON - hide screenshot button
+      screenshotButtonContainer.classList.remove('opacity-100', 'scale-100');
+      screenshotButtonContainer.classList.add('opacity-0', 'scale-95');
+    } else {
+      // Autoplay is OFF - show screenshot button
+      screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
+      screenshotButtonContainer.classList.add('opacity-100', 'scale-100');
+    }
+  }
+
+  // Debug function to clear stored states (useful for testing)
+  function clearStoredStates() {
+    chrome.storage.local.remove('toggleStates', () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error clearing stored states:', chrome.runtime.lastError);
+      } else {
+        console.log('Stored toggle states cleared');
+      }
+    });
+  }
+
+  // Make clearStoredStates available globally for debugging
+  window.clearStoredStates = clearStoredStates;
 
   // Emotion mapping for dynamic image display
   const emotionImageMap = {
@@ -24,23 +100,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentEmotionImg = document.querySelector('.current-emotion-img');
   const currentEmotionText = document.querySelector('.current-emotion-text');
 
-  // Set initial state - button should be visible when toggle is OFF (unchecked)
-  if (!screenshotToggle.checked) {
-    screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
-    screenshotButtonContainer.classList.add('opacity-100', 'scale-100');
+  // Load saved toggle states on startup
+  loadToggleStates();
+
+  // Function to send toggle states to content script
+  function sendToggleStates() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'updateToggleStates',
+          autoplayEnabled: autoplayToggle.checked,
+          liveAnalysisEnabled: liveAnalysisToggle.checked
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('Content script not ready:', chrome.runtime.lastError.message);
+          }
+        });
+      }
+    });
   }
 
-  // Handle toggle switch (inverted logic)
-  screenshotToggle.addEventListener('change', function() {
-    if (!this.checked) {
-      // Toggle is OFF - show screenshot button with smooth transition
-      screenshotButtonContainer.classList.remove('opacity-0', 'scale-95');
-      screenshotButtonContainer.classList.add('opacity-100', 'scale-100');
-    } else {
-      // Toggle is ON - hide screenshot button with smooth transition
-      screenshotButtonContainer.classList.remove('opacity-100', 'scale-100');
-      screenshotButtonContainer.classList.add('opacity-0', 'scale-95');
-    }
+  // Handle autoplay toggle switch
+  autoplayToggle.addEventListener('change', function() {
+    updateUIForToggleStates();
+    saveToggleStates();
+    sendToggleStates();
+  });
+
+  // Handle live analysis toggle switch
+  liveAnalysisToggle.addEventListener('change', function() {
+    saveToggleStates();
+    sendToggleStates();
   });
 
   // Handle screenshot button click
