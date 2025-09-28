@@ -1,9 +1,15 @@
 let VISUALON = true;
 
-const rectanglesVisible = new Bool(true);
+let rectanglesVisible = true;
+
+console.log("Content Script Initialized");
+
+setInterval(testProcessFrame, 500);
+
+/*
 rectanglesVisible.addListener(() => {
     console.log("Rectangles visibility changed:", rectanglesVisible);
-});
+});*/
 
 function captureFrame() {
     //Log the attempt to capture a frame
@@ -117,6 +123,7 @@ async function processVideoFrame() {
         console.log('Captured frame, sending to emotion detection API');
 
         // Send captured frame to emotion detection API
+        
         const response = await fetch(`${API_BASE_URL}/detect_emotions`, {
             method: 'POST',
             headers: {
@@ -137,6 +144,7 @@ async function processVideoFrame() {
             results: data.results || [],
             educational_prompts: data.educational_prompts || []
         };
+        
     } catch (error) {
         console.error('Error processing video frame for emotion detection:', error);
         return { results: [], educational_prompts: [] };
@@ -344,7 +352,7 @@ async function processFrame() {
 
 // Test processing function that uses real video capture
 async function testProcessFrame() {
-    console.log('testProcessFrame called, VISUALON:', VISUALON);
+    console.log('testProcessFrame called');
     try {
         const data = await processVideoFrame();
         console.log('testProcessFrame data:', data);
@@ -353,28 +361,10 @@ async function testProcessFrame() {
             console.log('Found', data.results.length, 'emotion results');
             drawEmotionBoxes(data.results);
             window.currentEmotionResults = data.results;
-            
-            // Update popup with most confident emotion from real video analysis
-            const mostConfidentEmotion = data.results.reduce((prev, current) => {
-                return (prev.confidence > current.confidence) ? prev : current;
-            });
-            
-            handleEmoji({
-                emotion: mostConfidentEmotion.emotion,
-                confidence: mostConfidentEmotion.confidence,
-                face_id: mostConfidentEmotion.face_id || 0
-            });
         } else {
             console.log('No emotion results found, clearing canvas');
             drawEmotionBoxes([]);
             window.currentEmotionResults = [];
-            
-            // Set to neutral when no emotions detected
-            handleEmoji({
-                emotion: 'neutral',
-                confidence: 1.0,
-                face_id: 0
-            });
         }
     } catch (error) {
         console.error('Error in testProcessFrame:', error);
@@ -382,6 +372,8 @@ async function testProcessFrame() {
         window.currentEmotionResults = [];
     }
 }
+
+
 // Function to check if a point is inside a rectangle
 function isPointInRect(x, y, rect) {
     return x >= rect.x && x <= rect.x + rect.width &&
@@ -777,4 +769,3 @@ document.addEventListener('keydown', function(event) {
 // setInterval(processFrame, 500);
 
 // Uncomment the line below and comment the line above to use real video capture instead
-setInterval(testProcessFrame, 500);
