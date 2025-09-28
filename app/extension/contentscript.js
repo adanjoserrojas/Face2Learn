@@ -1,4 +1,6 @@
 let VISUALON = true;
+//let geminiAdvice = "test";
+
 
 function captureFrame() {
     //Log the attempt to capture a frame
@@ -142,6 +144,9 @@ async function processVideoFrame() {
 function drawEmotionBoxes(results) {
     console.log('drawEmotionBoxes called with results:', results);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    //ctx.strokeStyle = "white";
+    //ctx.lineWidth = 10;
+    //ctx.fillText(geminiAdvice, 500, 500);
     
     if (!results || results.length === 0) {
         console.log('No results to draw, clearing canvas');
@@ -236,7 +241,7 @@ function drawEmotionBoxes(results) {
             // Draw text
             ctx.fillStyle = "white";
             ctx.fillText(label, scaledX + (scaledWidth / 2) - (textWidth / 2) + (ctx.lineWidth / 2), scaledY + 2);
-            }
+        }
     });
 }
 
@@ -251,31 +256,30 @@ function displayEducationalPrompts(prompts) {
     // Create prompt container
     const promptContainer = document.createElement('div');
     promptContainer.className = 'face2learn-prompt';
-    promptContainer.style.cssText = `
+    promptContainer.style.cssText =`
         position: fixed;
-        top: 20px;
-        right: 20px;
+        margin-top: 56px;
+        right: 2px;
         width: 300px;
         max-height: 400px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #fff6ec;
         color: white;
-        padding: 15px;
+        padding: 12px 15px 15px 12px; /* slightly less left padding */
         border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        z-index: 1001;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 14px;
+        z-index: 50;
+        font-family: 'Bitcount Prop Single Ink', system-ui;
+        font-weight: 400;
+        font-variation-setting: 'slnt' 0, 'CRSV' 0.5;
+        font-size: 2.25rem;
         line-height: 1.4;
         overflow-y: auto;
         backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.2);
     `;
     
     // Add close button
     const closeBtn = document.createElement('button');
     closeBtn.innerHTML = '×';
     closeBtn.style.cssText = `
-        position: absolute;
         top: 8px;
         right: 8px;
         background: none;
@@ -289,6 +293,7 @@ function displayEducationalPrompts(prompts) {
         display: flex;
         align-items: center;
         justify-content: center;
+        color: #3d348b
     `;
     closeBtn.onclick = () => promptContainer.remove();
     
@@ -302,13 +307,13 @@ function displayEducationalPrompts(prompts) {
         `;
         
         promptDiv.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 8px; color: #ffd700;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #3d348d;">
                 ${prompt.title}
             </div>
-            <div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8;">
+            <div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8; color: #3d348d;">
                 Confidence: ${Math.round(prompt.confidence * 100)}%
             </div>
-            <div style="white-space: pre-wrap;">
+            <div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8; color: #3d348d;">
                 ${prompt.content}
             </div>
         `;
@@ -319,12 +324,12 @@ function displayEducationalPrompts(prompts) {
     promptContainer.appendChild(closeBtn);
     document.body.appendChild(promptContainer);
     
-    // Auto-remove after 10 seconds
+    /*// Auto-remove after 10 seconds
     setTimeout(() => {
         if (promptContainer.parentNode) {
             promptContainer.remove();
         }
-    }, 10000);
+    }, 100000000); */
 }
 
 // Main processing function
@@ -363,8 +368,18 @@ function isPointInRect(x, y, rect) {
 }
 
 // Function to handle emotion box clicks
-function handleEmotionBoxClick(emotionData) {
+async function handleEmotionBoxClick(emotionData) {
     console.log('Emotion box clicked:', emotionData);
+    // Pause all videos on the page when a box is clicked
+    try {
+        const videos = document.querySelectorAll('video');
+        videos.forEach(v => {
+            try { v.pause(); } catch (e) { /* ignore if pause fails */ }
+        });
+        console.log(`Paused ${videos.length} video(s) due to box click`);
+    } catch (e) {
+        console.warn('Error attempting to pause videos:', e);
+    }
     
     // Create a detailed popup or alert with emotion information
     const details = `
@@ -375,11 +390,161 @@ Coordinates: (${Math.round(emotionData.x)}, ${Math.round(emotionData.y)})
 Size: ${Math.round(emotionData.width)} x ${Math.round(emotionData.height)}
     `;
     
-    // You can customize this to show a nicer modal or send data somewhere
-    alert(`Emotion Detection Details:\n${details}`);
+        // Show basic details first
+    //try { alert(`Emotion Detection Details:\n${details}`); } catch (e) { /* ignore */ }
+
+// Loading Container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'face2learn-prompt';
+    promptContainer.style.cssText = `
+        position: fixed;
+        margin-top: 56px;
+        right: 2px;
+        width: 300px;
+        max-height: 400px;
+        background: #fff6ec;
+        padding: 12px 15px 15px 12px; /* slightly less left padding */
+        border-radius: 12px;
+        z-index: 50;
+        font-family: 'Bitcount Prop Single Ink', system-ui;
+        font-weight: 400;
+        font-variation-setting: 'slnt' 0, 'CRSV' 0.5;
+        font-size: 2.25rem;
+        line-height: 1.4;
+        overflow-y: auto;
+        backdrop-filter: blur(10px);
+    `;
     
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: right;
+        justify-content: center;
+        color: #3d348b
+    `;
+    closeBtn.onclick = () => promptContainer.remove();
+    
+        // Loading bar
+        const promptDiv = document.createElement('div');
+        promptDiv.style.cssText = `
+            margin-bottom: ${0 < 15 - 1 ? '15px' : '0'};
+            padding-bottom: ${0 < 15 - 1 ? '15px' : '0'};
+            border-bottom: ${0 < 15 - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none'};
+        `;
+            
+        promptDiv.innerHTML = `
+            <div style="white-space: pre-wrap;">
+                Loading...
+            </div>
+            <div style="font-weight: bold; margin-bottom: 8px; color: #3d348b">
+                ???
+            </div>
+            <div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8;">
+                Confidence: ?%
+            </div>
+        `;
+            
+        promptContainer.appendChild(promptDiv);
+        
+        promptContainer.appendChild(closeBtn);
+        document.body.appendChild(promptContainer);
+
+    // Capture frame (captureFrame may be sync or return a Promise)
+    let image;
+    try {
+        image = await Promise.resolve(captureFrame());
+    } catch (e) {
+        console.warn('captureFrame failed:', e);
+        image = null;
+    }
+
+    // Request prompt from backend (with image if available)
+    try {
+        let prompt = null;
+
+        if (image) {
+            prompt = await geminiAdviceWithImage(image, emotionData.emotion, emotionData.confidence);
+        } else {
+            prompt = await geminiAdviceWithoutImage(emotionData.emotion, emotionData.confidence);
+        }
+
+        if (prompt && (prompt.content || prompt.title)) {
+            // Put gemini prompt into the educational advice UI and show a quick alert
+            try {
+                displayEducationalPrompts([prompt]);
+            } catch (e) {
+                console.warn('displayEducationalPrompts failed:', e);
+            }
+
+            //try { alert(`Learning Guidance:\n\n${prompt.title}\n\n${prompt.content}`); } catch (e) { /* ignore */ }
+        } else {
+            console.warn('No prompt returned from backend');
+        }
+    } catch (e) {
+        console.error('Error fetching Gemini prompt:', e);
+    }
+
+
     // Optional: You could also send this data to your backend for logging
     // logEmotionClick(emotionData);
+}
+
+async function geminiAdviceWithImage(imageData, emotionData, confidenceData) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/generate_prompt_from_image`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData,
+                emotion: emotionData,
+                confidence: confidenceData,
+                context: " "
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // API returns { success: true, prompt: {...} }
+        return data.prompt || null;
+    } catch (error) {
+        console.error('Error calling emotion detection API:', error);
+        return [];
+    }
+}
+
+async function geminiAdviceWithoutImage(emotion, confidence) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/generate_prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emotion: emotion, confidence: confidence, context: 'User requested guidance' })
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const data = await response.json();
+        return data.prompt || null;
+    } catch (error) {
+        console.error('Error calling emotion detection API:', error);
+        return [];
+    }
 }
 
 

@@ -61,7 +61,7 @@ CORS(app)  # Enable CORS for Chrome extension communication
 
 # Configure Gemini AI
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+genAIModel = genai.GenerativeModel('gemini-2.5-pro')
 
 def create_model():
     """
@@ -251,20 +251,21 @@ def get_fallback_educational_content(emotion, confidence):
     Generate fallback educational content when Gemini API is not available.
     """
     fallback_content = {
-        "Happy": f"I can see you're feeling positive about learning (confidence: {confidence:.1%}). Your expression suggests you're engaged and enjoying the learning process. This is an excellent state for absorbing new information. Try tackling more challenging concepts while you're in this positive mood, or help others learn by explaining what you know! Consider your current learning environment - is it comfortable and well-lit? Make sure you're taking advantage of this positive energy!",
+        "Happy": f"You seem to be feeling positive (confidence: {confidence:.1%}). Your expression shows energy and engagement, which is an excellent state for learning. Use this momentum to explore challenging material or share your knowledge with others. Take note of your study environment too—if it feels comfortable and supportive, lean into that while your motivation is high.",
         
-        "Sad": f"I notice you might be feeling a bit down (confidence: {confidence:.1%}). Learning can be challenging sometimes, and it's okay to feel this way. Your expression suggests you might be struggling with the material or feeling overwhelmed. Consider taking a short break, reviewing easier material to build confidence, or reaching out to a study partner for support. Check your learning environment - sometimes a change of scenery or better lighting can help improve your mood.",
+        "Sad": f"You may be feeling a bit down (confidence: {confidence:.1%}). This often happens when learning feels overwhelming or progress feels slow. Be kind to yourself—take a short break, revisit simpler concepts, or talk through the material with someone supportive. Small adjustments to your environment, like better lighting or a change of scenery, can also lift your mood.",
         
-        "Angry": f"It looks like you might be feeling frustrated (confidence: {confidence:.1%}). This is completely normal when learning something difficult. Your expression suggests you're hitting a learning obstacle. Try breaking the material into smaller chunks, taking deep breaths, or switching to a different topic for a while. Remember, every expert was once a beginner! Consider your study setup - are you comfortable? Sometimes adjusting your posture or taking a short walk can help reset your mindset.",
+        "Angry": f"You look frustrated (confidence: {confidence:.1%}). Frustration is natural when learning is difficult. Try breaking the problem into smaller steps, switching topics briefly, or pausing for a reset. Remember, persistence matters more than perfection. Also check your setup—sometimes posture, noise, or distractions add to stress more than the material itself.",
         
-        "Fearful": f"I can see some uncertainty in your expression (confidence: {confidence:.1%}). It's natural to feel apprehensive about new concepts. Your expression suggests you might be worried about not understanding something or making mistakes. Start with the basics, ask questions, and remember that making mistakes is part of the learning process. You've got this! Make sure you're in a comfortable, distraction-free environment that helps you feel safe to learn.",
+        "Fearful": f"You might be feeling unsure or nervous (confidence: {confidence:.1%}). This suggests some worry about mistakes or not understanding fully. Focus on the basics, ask clear questions, and remember that mistakes are essential steps in learning. Make sure your environment feels safe and distraction-free so you can approach new ideas with confidence.",
         
-        "Surprised": f"Wow! You look surprised (confidence: {confidence:.1%}). This suggests you've just discovered something unexpected or new! This is one of the best moments in learning. Your expression shows genuine curiosity and engagement. Take time to explore this discovery further and see what other connections you can make. This is a perfect time to take notes or discuss what you've learned with someone else!",
+        "Surprised": f"You look surprised (confidence: {confidence:.1%}). This usually means you’ve encountered something new or unexpected, which is a great spark for curiosity. Take a moment to explore the idea further, connect it to what you already know, or share your discovery. Capture this energy in notes or discussions while your attention is sharp.",
         
-        "Disgusted": f"It seems like this content might not be resonating with you (confidence: {confidence:.1%}). That's okay! Your expression suggests you're not connecting with the current material or approach. Try a different approach, find alternative resources, or take a break and come back with fresh eyes. Learning should feel engaging, not forced. Consider whether your learning environment is optimal - sometimes a change of setting can make a big difference.",
+        "Disgusted": f"You seem uncomfortable with the material (confidence: {confidence:.1%}). This might mean the approach doesn’t suit your style or the content feels off-putting. Try switching resources, rephrasing the material, or stepping away briefly. Learning should feel engaging—sometimes adjusting your environment or study method makes a big difference.",
         
-        "Neutral": f"You appear focused and attentive (confidence: {confidence:.1%}). This is an ideal learning state! Your expression shows you're ready to absorb new information. Try to maintain this concentration and consider taking notes to reinforce what you're learning. Your current learning environment seems to be working well for you - keep up the good work!"
+        "Neutral": f"You appear calm and attentive (confidence: {confidence:.1%}). This is a strong state for learning since your focus is steady and clear. Take advantage by practicing note-taking, summarizing key points, or applying ideas actively. Keep your environment consistent and distraction-free so you can maintain this balance."
     }
+
     
     return fallback_content.get(emotion, f"You're showing a {emotion.lower()} expression (confidence: {confidence:.1%}). This is a normal part of the learning process. Take a moment to reflect on how you're feeling and adjust your learning approach accordingly. Consider your current environment and whether it's supporting your learning goals.")
 
@@ -307,25 +308,23 @@ def generate_educational_prompt_from_image(image_data, emotion, confidence, cont
         
         # Create a comprehensive prompt for Gemini with the image
         prompt = f"""
-        You are an educational AI assistant helping learners understand and manage their emotions during learning.
+        You are an educational AI assistant helping socially disabled understand and recognize the emotions of others.
         
-        Look at this image carefully. I can see their facial expression shows "{emotion}" emotion with {confidence:.1%} confidence.
+        My very innacurrate and lightweight model as provided the following information: The main target's face shows "{emotion}" emotion.
         Additional context: {context if context else "General learning environment"}
         
         Please analyze this image and provide:
-        1. A detailed description of what you see in the scene - describe the setting, lighting, what the person is doing, their posture, and any other relevant details
-        2. An explanation of what this emotion and expression might indicate about their learning state, considering the scene context
-        3. 2-3 specific learning strategies or activities they could try based on this emotional state and scene
-        4. Encouragement or motivation appropriate for this emotional state and learning situation
-        5. A short, actionable tip they can implement right now based on what you observe
+        1. A detailed description of what you see in the scene - describe the setting, lighting, what the person is doing, their posture, and any other relevant details that relate to helping teach about social cues and emotion.
+        2. An explanation of what this emotion and expression might indicate about this person's mental state, considering the scene context to help the user understand key signals.
+        3. A short, actionable tip they can implement right now based on what you observe and how to interact with this emotion.
         
         Be specific about what you observe in the scene and how it relates to their learning experience. Consider the environment, their setup, and how it might be affecting their learning.
-        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 250 words).
+        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 250 words) and within three non-complex sentences.
         """
         
         # Use Gemini Pro Vision model for image analysis
         try:
-            vision_model = genai.GenerativeModel('gemini-pro-vision')
+            vision_model = genai.GenerativeModel('gemini-2.5-pro')
             response = vision_model.generate_content([prompt, image])
             
             # Parse the response and structure it
@@ -376,18 +375,18 @@ def generate_educational_prompt_text_only(emotion, confidence, context=""):
     try:
         # Create a comprehensive prompt for Gemini
         prompt = f"""
-        You are an educational AI assistant helping learners understand and manage their emotions during learning.
+        You are an educational AI assistant helping socially disabled understand and recognize the emotions of others.
         
-        Context: A learner is watching educational content and their facial expression shows "{emotion}" emotion with {confidence:.1%} confidence.
+        My very innacurrate and lightweight model as provided the following information: The main target's face shows "{emotion}" emotion.
         Additional context: {context if context else "General learning environment"}
         
-        Please provide:
-        1. A brief explanation of what this emotion might indicate about their learning state
-        2. 2-3 specific learning strategies or activities they could try based on this emotion
-        3. Encouragement or motivation appropriate for this emotional state
-        4. A short, actionable tip they can implement right now
+        Please analyze this image and provide:
+        1. A detailed description of what you see in the scene - describe the setting, lighting, what the person is doing, their posture, and any other relevant details that relate to helping teach about social cues and emotion.
+        2. An explanation of what this emotion and expression might indicate about this person's mental state, considering the scene context to help the user understand key signals.
+        3. A short, actionable tip they can implement right now based on what you observe and how to interact with this emotion.
         
-        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 200 words).
+        Be specific about what you observe in the scene and how it relates to their learning experience. Consider the environment, their setup, and how it might be affecting their learning.
+        Format your response as a helpful, supportive educational guide. Keep it concise but meaningful (under 250 words) and within three non-complex sentences.
         """
         
         response = model.generate_content(prompt)

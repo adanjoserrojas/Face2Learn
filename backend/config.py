@@ -3,7 +3,7 @@ import os
 
 # Gemini AI Configuration
 # Replace 'your-actual-api-key-here' with your real Gemini API key
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyBZsHYNaJWmEloqLK6N3qqr-e-UBr1RGlA')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
 # Flask Configuration
 FLASK_ENV = os.getenv('FLASK_ENV', 'development')
