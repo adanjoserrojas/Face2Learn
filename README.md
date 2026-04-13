@@ -1,8 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Face2Learn
 
-## Getting Started
+A web application and Chrome extension backend that detects facial emotions in real time and generates educational prompts via Gemini AI to help socially disabled individuals understand emotional cues.
 
-First, run the development server:
+## Description
+
+Face2Learn combines a CNN-based facial emotion classifier with Google's Gemini AI to produce contextual, educational explanations of detected emotions. The system has two main parts:
+
+**Python / Flask backend (`backend/api.py`)**
+- Accepts base64-encoded images over HTTP and detects faces using OpenCV's Haar cascade classifier (`haarcascade_frontalface_default.xml`).
+- Classifies each detected face into one of seven emotions — Angry, Disgusted, Fearful, Happy, Neutral, Sad, Surprised — using a pre-trained Keras CNN model (`model.h5`) that takes 48×48 grayscale input.
+- Sends the captured image and detected emotion to Gemini (`gemini-2.5-pro`) to generate a short, scene-aware educational description of the emotion and how to interact with it.
+- Also exposes a text-classification endpoint (`POST /`) powered by the `j-hartmann/emotion-english-distilroberta-base` DistilRoBERTa model (via Hugging Face `transformers` and `torch`) for emotion detection from plain text.
+- Falls back to hard-coded educational descriptions when the Gemini API is unavailable.
+
+**Next.js frontend (`app/`)**
+- Bootstrapped with `create-next-app`.
+- Uses `next/font` to load the Geist font family.
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/detect_emotions` | Detect faces and emotions in a base64 image |
+| `POST` | `/generate_prompt_from_image` | Generate an educational prompt from an image + emotion using Gemini Vision |
+| `POST` | `/generate_prompt` | Generate an educational prompt from emotion text only |
+| `POST` | `/` | Classify emotion from plain text (DistilRoBERTa) |
+| `GET` | `/test_emotions` | Return simulated emotion data for UI testing |
+| `GET` | `/health` | Health check |
+
+The backend listens on `0.0.0.0:5001`.
+
+## Installation
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+Place the following files in the `backend/` directory before starting:
+- `model.h5` — pre-trained CNN weights
+- `haarcascade_frontalface_default.xml` — OpenCV Haar cascade
+
+Set your Gemini API key:
+
+```bash
+export GEMINI_API_KEY=your_key_here
+```
+
+Start the Flask server:
+
+```bash
+python api.py
+```
+
+### Frontend
 
 ```bash
 npm run dev
@@ -14,25 +67,22 @@ pnpm dev
 bun dev
 ```
 
-## Setting up 
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`backend/config.py` exposes the following environment variables:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GEMINI_API_KEY` | — | Google Gemini API key |
+| `FLASK_ENV` | `development` | Flask environment |
+| `API_HOST` | `0.0.0.0` | Server host |
+| `API_PORT` | `5001` | Server port |
+| `CONFIDENCE_THRESHOLD` | `0.7` | Minimum confidence for emotion results |
+| `MAX_FACES` | `5` | Maximum faces to process per image |
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Python** — Flask, TensorFlow/Keras, OpenCV, Pillow, NumPy, `google-generativeai`, `transformers`, PyTorch
+- **TypeScript / JavaScript / HTML / CSS** — Next.js frontend
